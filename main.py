@@ -15,12 +15,6 @@ logging.basicConfig(
 
 async def main():
     """Main entry point for the Discord bot."""
-
-    # Prevent multiple instances from running on Render
-    if os.getenv("RENDER_INSTANCE_ID") not in (None, "", "render-worker-0"):
-        logging.info(f"Skipping bot start — instance {os.getenv('RENDER_INSTANCE_ID')} is not primary.")
-        return
-
     # Get bot token from environment variable
     bot_token = os.getenv('DISCORD_BOT_TOKEN', 'your_bot_token_here')
     if not bot_token or bot_token == 'your_bot_token_here':
@@ -44,4 +38,3 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-
