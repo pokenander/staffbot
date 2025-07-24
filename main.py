@@ -15,7 +15,7 @@ logging.basicConfig(
     ]
 )
 
-# Flask app to keep Render's port open
+# Minimal Flask app to bind a port (required for Render Web Service)
 app = Flask(__name__)
 
 @app.route('/')
@@ -23,27 +23,20 @@ def home():
     return 'Bot is running!'
 
 def run_flask():
-    port = int(os.environ.get("PORT", 5000))
+    port = int(os.environ.get('PORT', 5000))  # Render sets this dynamically
     app.run(host='0.0.0.0', port=port)
 
-async def main():
-    """Main entry point for the Discord bot."""
-    # Get bot token from environment variable
+async def start_bot():
+    """Starts the Discord bot."""
     bot_token = os.getenv('DISCORD_BOT_TOKEN', 'your_bot_token_here')
     if not bot_token or bot_token == 'your_bot_token_here':
         logging.error("DISCORD_BOT_TOKEN environment variable not set")
         return
 
-    # Start Flask in a background thread
-    threading.Thread(target=run_flask).start()
-
-    # Initialize the bot
     bot = TicketBot()
 
     try:
-        # Start the bot
         await bot.start(bot_token)
-
     except KeyboardInterrupt:
         logging.info("Bot stopped by user")
     except Exception as e:
@@ -52,5 +45,12 @@ async def main():
     finally:
         await bot.close()
 
+def main():
+    # Start Flask app in a background thread
+    threading.Thread(target=run_flask).start()
+
+    # Run the bot in the main thread's event loop
+    asyncio.run(start_bot())
+
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
