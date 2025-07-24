@@ -1,6 +1,8 @@
 import os
 import asyncio
 import logging
+import threading
+from flask import Flask
 from bot import TicketBot
 
 # Configure logging
@@ -13,6 +15,17 @@ logging.basicConfig(
     ]
 )
 
+# Flask app to keep Render's port open
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return 'Bot is running!'
+
+def run_flask():
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host='0.0.0.0', port=port)
+
 async def main():
     """Main entry point for the Discord bot."""
     # Get bot token from environment variable
@@ -20,6 +33,9 @@ async def main():
     if not bot_token or bot_token == 'your_bot_token_here':
         logging.error("DISCORD_BOT_TOKEN environment variable not set")
         return
+
+    # Start Flask in a background thread
+    threading.Thread(target=run_flask).start()
 
     # Initialize the bot
     bot = TicketBot()
