@@ -13,6 +13,23 @@ from timeouts import TimeoutManager
 from leaderboard import LeaderboardManager
 from config import BOT_PREFIX, DATABASE_PATH, TIMEZONE
 
+# === Flask server to keep Render Web Service alive ===
+from flask import Flask
+import threading
+import os
+
+app = Flask(__name__)
+
+@app.route('/')
+def index():
+    return 'Bot is running!', 200
+
+def run_web_server():
+    port = int(os.environ.get("PORT", 8080))
+    app.run(host="0.0.0.0", port=port)
+
+# =====================================================
+
 class TicketBot(commands.Bot):
     def __init__(self):
         intents = discord.Intents.default()
@@ -205,3 +222,12 @@ class TicketBot(commands.Bot):
         
         finally:
             await super().close()
+
+# === Main runner ===
+if __name__ == "__main__":
+    # Start web server in background thread
+    threading.Thread(target=run_web_server).start()
+
+    # Start the Discord bot
+    bot = TicketBot()
+    bot.run(os.environ["DISCORD_TOKEN"])
