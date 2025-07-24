@@ -1,2 +1,3 @@
 discord.py
 flask
+APScheduler==3.11.0
