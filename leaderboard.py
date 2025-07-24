@@ -1,0 +1,165 @@
+import discord
+import logging
+from datetime import datetime
+from typing import List, Tuple
+
+class LeaderboardManager:
+    def __init__(self, bot):
+        self.bot = bot
+    
+    async def get_leaderboard_embed(self, guild: discord.Guild, period: str = "total", page: int = 1) -> discord.Embed:
+        """Generate leaderboard embed for a specific period with pagination."""
+        
+        period_names = {
+            "daily": "Daily",
+            "weekly": "Weekly", 
+            "total": "All Time"
+        }
+        
+        period_name = period_names.get(period, "All Time")
+        
+        # Get leaderboard data
+        leaderboard_data = self.bot.database.get_leaderboard(guild.id, period)
+        
+        if not leaderboard_data:
+            embed = discord.Embed(
+                title=f"🏆 {period_name} Ticket Claims Leaderboard",
+                color=discord.Color.gold(),
+                timestamp=datetime.now()
+            )
+            embed.description = "No claims recorded yet."
+            embed.add_field(
+                name="Getting Started",
+                value="Use `?claim @user` to start claiming tickets and earning points!",
+                inline=False
+            )
+            return embed
+        
+        # Pagination settings
+        per_page = 10
+        total_pages = (len(leaderboard_data) + per_page - 1) // per_page
+        page = max(1, min(page, total_pages))  # Ensure page is within valid range
+        
+        start_index = (page - 1) * per_page
+        end_index = start_index + per_page
+        page_data = leaderboard_data[start_index:end_index]
+        
+        # Create embed
+        embed = discord.Embed(
+            title=f"🏆 {period_name} Ticket Claims Leaderboard",
+            color=discord.Color.gold(),
+            timestamp=datetime.now()
+        )
+        
+        # Build leaderboard text
+        leaderboard_text = ""
+        medals = ["🥇", "🥈", "🥉"]
+        
+        for i, (user_id, claims) in enumerate(page_data):
+            actual_rank = start_index + i + 1
+            user = guild.get_member(user_id)
+            if user:
+                username = f"<@{user_id}>"  # Use mention format
+            else:
+                username = f"User {user_id}"  # Fallback for users not in guild
+            
+            if actual_rank <= 3:
+                medal = medals[actual_rank - 1]
+            else:
+                medal = f"{actual_rank}."
+            
+            leaderboard_text += f"{medal} {username} - {claims} claims\n"
+        
+        embed.description = leaderboard_text
+        
+        # Add pagination info to footer
+        if total_pages > 1:
+            footer_text = f"Page {page}/{total_pages} • "
+        else:
+            footer_text = ""
+            
+        if period == "daily":
+            footer_text += "Daily leaderboard resets at 00:00 GMT+2"
+        elif period == "weekly":
+            footer_text += "Weekly leaderboard resets every Monday at 00:00 GMT+2"
+        else:
+            footer_text += "All-time statistics • Use ?help for more commands"
+        
+        embed.set_footer(text=footer_text)
+        
+        return embed
+    
+    async def send_leaderboard(self, channel: discord.TextChannel, period: str = "total", page: int = 1):
+        """Send leaderboard to a channel with pagination."""
+        try:
+            embed = await self.get_leaderboard_embed(channel.guild, period, page)
+            await channel.send(embed=embed)
+        except Exception as e:
+            logging.error(f"Error sending leaderboard to {channel.id}: {e}")
+            await channel.send("❌ Error generating leaderboard.")
+    
+    async def send_combined_leaderboard(self, channel: discord.TextChannel):
+        """Send all three leaderboards in one message."""
+        try:
+            # Create combined embed
+            embed = discord.Embed(
+                title="🏆 Ticket Claims Leaderboards",
+                description="Top performers across all time periods",
+                color=discord.Color.gold(),
+                timestamp=datetime.now()
+            )
+            
+            # Get data for all periods
+            periods = [("daily", "📅 Daily"), ("weekly", "📊 Weekly"), ("total", "🌟 All Time")]
+            
+            for period, period_emoji in periods:
+                leaderboard_data = self.bot.database.get_leaderboard(channel.guild.id, period)
+                
+                if leaderboard_data:
+                    field_text = ""
+                    for i, (user_id, claims) in enumerate(leaderboard_data[:5]):  # Top 5 only
+                        user = channel.guild.get_member(user_id)
+                        if user:
+                            username = f"<@{user_id}>"  # Use mention format
+                        else:
+                            username = f"User {user_id}"  # Fallback for users not in guild
+                        medal = "🥇🥈🥉"[i] if i < 3 else f"{i + 1}."
+                        field_text += f"{medal} {username} - {claims}\n"
+                else:
+                    field_text = "No claims yet"
+                
+                embed.add_field(
+                    name=f"{period_emoji} Leaderboard",
+                    value=field_text,
+                    inline=True
+                )
+            
+            # Add instructions
+            embed.add_field(
+                name="📋 Commands",
+                value="`?lb daily` • `?lb weekly` • `?lb total`\n`?claim @user` to start earning points!",
+                inline=False
+            )
+            
+            embed.set_footer(text="Leaderboards reset: Daily at 00:00 GMT+2, Weekly on Mondays")
+            await channel.send(embed=embed)
+            
+        except Exception as e:
+            logging.error(f"Error sending combined leaderboard to {channel.id}: {e}")
+            await channel.send("❌ Error generating leaderboards.")
+    
+    def reset_daily_leaderboard(self):
+        """Reset daily leaderboard."""
+        try:
+            self.bot.database.reset_daily_leaderboard()
+            logging.info("Daily leaderboard reset completed")
+        except Exception as e:
+            logging.error(f"Error resetting daily leaderboard: {e}")
+    
+    def reset_weekly_leaderboard(self):
+        """Reset weekly leaderboard."""
+        try:
+            self.bot.database.reset_weekly_leaderboard()
+            logging.info("Weekly leaderboard reset completed")
+        except Exception as e:
+            logging.error(f"Error resetting weekly leaderboard: {e}")
