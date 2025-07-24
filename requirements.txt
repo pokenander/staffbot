@@ -5,7 +5,7 @@ APScheduler==3.11.0
 attrs==25.3.0
 blinker==1.9.0
 click==8.2.1
-discord.py==2.5.2
+discord.py==2.3.2
 Flask==3.1.1
 frozenlist==1.7.0
 idna==3.10
