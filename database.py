@@ -121,17 +121,19 @@ class Database:
             ''', (role_id, guild_id))
             conn.commit()
     
-    def set_allowed_category(self, guild_id: int, category_id: int):
-        """Set the allowed category for ticket commands."""
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            cursor.execute('''
-                INSERT OR IGNORE INTO guild_config (guild_id) VALUES (?)
-            ''', (guild_id,))
-            cursor.execute('''
-                UPDATE guild_config SET allowed_category_id = ? WHERE guild_id = ?
-            ''', (category_id, guild_id))
-            conn.commit()
+    def add_allowed_category(self, guild_id, category_id):
+    with self.conn:
+        self.conn.execute("INSERT OR IGNORE INTO allowed_categories (guild_id, category_id) VALUES (?, ?)", (guild_id, category_id))
+
+def remove_allowed_category(self, guild_id, category_id):
+    with self.conn:
+        self.conn.execute("DELETE FROM allowed_categories WHERE guild_id = ? AND category_id = ?", (guild_id, category_id))
+
+def get_allowed_categories(self, guild_id):
+    cur = self.conn.cursor()
+    cur.execute("SELECT category_id FROM allowed_categories WHERE guild_id = ?", (guild_id,))
+    return [row[0] for row in cur.fetchall()]
+
     
     def set_leaderboard_channel(self, guild_id: int, channel_id: int):
         """Set the leaderboard channel for automatic updates."""
