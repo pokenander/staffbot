@@ -1,173 +1,215 @@
 import discord
-import json
 import logging
-from typing import List, Optional, Dict, Any
 
 class PermissionManager:
     def __init__(self, bot):
         self.bot = bot
-    
-    async def get_ticket_holder(self, channel: discord.TextChannel) -> Optional[discord.Member]:
-        """Get the ticket holder from database (manually set by staff)."""
-        try:
-            # Check if ticket holder is already stored in database
-            ticket_holder_id = self.bot.database.get_ticket_holder(channel.id)
-            if ticket_holder_id:
-                member = channel.guild.get_member(ticket_holder_id)
-                if member:
-                    logging.info(f"Found ticket holder from database: {member.display_name}")
-                    return member
-                else:
-                    logging.warning(f"Stored ticket holder ID {ticket_holder_id} not found in guild")
-            
-            logging.warning(f"No ticket holder set for channel {channel.id}")
-            return None
-        except Exception as e:
-            logging.error(f"Error getting ticket holder for {channel.id}: {e}")
-            return None
-    
-    def has_staff_role(self, member: discord.Member, staff_role_id: int) -> bool:
-        """Check if member has staff role or higher."""
+
+    def has_staff_role(self, member, staff_role_id):
+        """Check if member has the staff role."""
         if not staff_role_id:
             return False
         
-        staff_role = member.guild.get_role(staff_role_id)
-        if not staff_role:
+        # Check if member has the specific staff role
+        for role in member.roles:
+            if role.id == staff_role_id:
+                return True
+        
+        # Also allow administrators
+        return member.guild_permissions.administrator
+
+    async def restrict_channel_permissions(self, channel, ticket_holder, staff_member, staff_role):
+        """Restrict channel permissions efficiently - only remove send_messages from staff role and give individual permission to claimer."""
+        # Store original permissions for restoration
+        original_permissions = {}
+        
+        try:
+            # Store original staff role permissions if they had any
+            staff_role_had_perms = staff_role in channel.overwrites
+            if staff_role_had_perms:
+                staff_perms = channel.overwrites_for(staff_role)
+                original_permissions['staff_role'] = {
+                    'view_channel': staff_perms.view_channel,
+                    'send_messages': staff_perms.send_messages,
+                    'read_message_history': staff_perms.read_message_history
+                }
+            else:
+                original_permissions['staff_role'] = None
+            
+            # Store original staff member permissions if they had any
+            staff_member_had_perms = staff_member in channel.overwrites
+            if staff_member_had_perms:
+                member_perms = channel.overwrites_for(staff_member)
+                original_permissions['staff_member'] = {
+                    'view_channel': member_perms.view_channel,
+                    'send_messages': member_perms.send_messages,
+                    'read_message_history': member_perms.read_message_history
+                }
+            else:
+                original_permissions['staff_member'] = None
+            
+            # Remove send_messages permission from staff role only
+            current_staff_perms = channel.overwrites_for(staff_role)
+            await channel.set_permissions(
+                staff_role,
+                view_channel=current_staff_perms.view_channel,
+                send_messages=False,  # Remove send permission
+                read_message_history=current_staff_perms.read_message_history
+            )
+            
+            # Give individual send permission to the staff member who claimed
+            await channel.set_permissions(
+                staff_member,
+                send_messages=True,
+                view_channel=True,
+                read_message_history=True
+            )
+            
+            logging.info(f"Efficiently restricted permissions for channel {channel.id} - removed staff role send_messages, added individual permission for {staff_member.id}")
+            return original_permissions
+            
+        except Exception as e:
+            logging.error(f"Error restricting channel permissions: {e}")
+            raise
+
+    async def restore_channel_permissions(self, channel, original_permissions):
+        """Restore original channel permissions efficiently."""
+        try:
+            # Get current overwrites to identify the staff role and member to restore
+            current_overwrites = channel.overwrites
+            
+            # Find and restore staff role permissions
+            for target, overwrite in current_overwrites.items():
+                if isinstance(target, discord.Role):
+                    # Check if this role had original permissions stored
+                    if 'staff_role' in original_permissions:
+                        staff_role_perms = original_permissions['staff_role']
+                        if staff_role_perms:
+                            # Restore original permissions
+                            await channel.set_permissions(
+                                target,
+                                view_channel=staff_role_perms.get('view_channel'),
+                                send_messages=staff_role_perms.get('send_messages'),
+                                read_message_history=staff_role_perms.get('read_message_history')
+                            )
+                        else:
+                            # Remove override if role didn't have permissions originally
+                            await channel.set_permissions(target, overwrite=None)
+                        break
+            
+            # Find and restore staff member permissions
+            for target, overwrite in current_overwrites.items():
+                if isinstance(target, discord.Member):
+                    # Check if this member had original permissions stored
+                    if 'staff_member' in original_permissions:
+                        staff_member_perms = original_permissions['staff_member']
+                        if staff_member_perms:
+                            # Restore original permissions
+                            await channel.set_permissions(
+                                target,
+                                view_channel=staff_member_perms.get('view_channel'),
+                                send_messages=staff_member_perms.get('send_messages'),
+                                read_message_history=staff_member_perms.get('read_message_history')
+                            )
+                        else:
+                            # Remove override if member didn't have permissions originally
+                            await channel.set_permissions(target, overwrite=None)
+                        break
+            
+            logging.info(f"Efficiently restored permissions for channel {channel.id}")
+            
+        except Exception as e:
+            logging.error(f"Error restoring channel permissions: {e}")
+            raise
+
+    async def add_user_to_ticket(self, channel, user, permission_level='view'):
+        """Add a user to a ticket with specified permissions."""
+        try:
+            if permission_level == 'view':
+                await channel.set_permissions(
+                    user,
+                    view_channel=True,
+                    send_messages=False,
+                    read_message_history=True
+                )
+            elif permission_level == 'interact':
+                await channel.set_permissions(
+                    user,
+                    view_channel=True,
+                    send_messages=True,
+                    read_message_history=True
+                )
+            
+            logging.info(f"Added user {user.id} to ticket {channel.id} with {permission_level} permissions")
+            
+        except Exception as e:
+            logging.error(f"Error adding user to ticket: {e}")
+            raise
+
+    async def remove_user_from_ticket(self, channel, user):
+        """Remove a user from a ticket."""
+        try:
+            await channel.set_permissions(user, overwrite=None)
+            logging.info(f"Removed user {user.id} from ticket {channel.id}")
+            
+        except Exception as e:
+            logging.error(f"Error removing user from ticket: {e}")
+            raise
+
+    def get_ticket_participants(self, channel):
+        """Get list of users who can access the ticket channel."""
+        participants = []
+        
+        for target, overwrite in channel.overwrites.items():
+            if isinstance(target, discord.Member) and overwrite.view_channel:
+                participants.append(target)
+        
+        return participants
+
+    async def set_channel_read_only(self, channel, read_only=True):
+        """Set channel to read-only mode."""
+        try:
+            everyone_role = channel.guild.default_role
+            
+            if read_only:
+                await channel.set_permissions(
+                    everyone_role,
+                    send_messages=False,
+                    add_reactions=False
+                )
+            else:
+                # Restore send permissions (keep existing view permissions)
+                current_perms = channel.overwrites_for(everyone_role)
+                await channel.set_permissions(
+                    everyone_role,
+                    view_channel=current_perms.view_channel,
+                    send_messages=True,
+                    read_message_history=current_perms.read_message_history,
+                    add_reactions=True
+                )
+            
+            logging.info(f"Set channel {channel.id} read-only: {read_only}")
+            
+        except Exception as e:
+            logging.error(f"Error setting channel read-only mode: {e}")
+            raise
+
+    def can_manage_ticket(self, member, channel_id):
+        """Check if member can manage the specified ticket."""
+        # Get timeout info
+        timeout_info = self.bot.database.get_timeout_info(channel_id)
+        
+        if not timeout_info:
             return False
         
-        # Check if member has staff role
-        if staff_role in member.roles:
+        _, staff_id, _, _ = timeout_info
+        
+        # Check if user is the staff member who claimed the ticket
+        if member.id == staff_id:
             return True
         
-        # Check if member has higher role (administrator permissions)
+        # Check if user has administrator permissions
         if member.guild_permissions.administrator:
             return True
         
-        # Check if member has higher role by position
-        for role in member.roles:
-            if role.position > staff_role.position and not role.is_default():
-                return True
-        
         return False
-    
-    def get_higher_staff_roles(self, guild: discord.Guild, staff_role: discord.Role) -> List[discord.Role]:
-        """Get all roles higher than the staff role in hierarchy."""
-        higher_roles = []
-        for role in guild.roles:
-            if role.position > staff_role.position and not role.is_default():
-                higher_roles.append(role)
-        return higher_roles
-    
-    async def save_original_permissions(self, channel: discord.TextChannel) -> str:
-        """Save the original channel permissions as JSON."""
-        permissions_data = {}
-        
-        for target, overwrite in channel.overwrites.items():
-            target_id = target.id
-            target_type = "role" if isinstance(target, discord.Role) else "member"
-            
-            permissions_data[str(target_id)] = {
-                "type": target_type,
-                "allow": overwrite.pair()[0].value,
-                "deny": overwrite.pair()[1].value
-            }
-        
-        return json.dumps(permissions_data)
-    
-    async def restore_permissions(self, channel: discord.TextChannel, permissions_json: str):
-        """Restore channel permissions from JSON data."""
-        try:
-            permissions_data = json.loads(permissions_json)
-            
-            # Clear all current overwrites
-            for target in list(channel.overwrites.keys()):
-                if isinstance(target, (discord.Role, discord.Member)):
-                    await channel.set_permissions(target, overwrite=None)
-            
-            # Restore original permissions
-            for target_id, perm_data in permissions_data.items():
-                target_id = int(target_id)
-                
-                if perm_data["type"] == "role":
-                    target = channel.guild.get_role(target_id)
-                else:
-                    target = channel.guild.get_member(target_id)
-                
-                if target and isinstance(target, (discord.Role, discord.Member)):
-                    permissions = discord.PermissionOverwrite.from_pair(
-                        discord.Permissions(perm_data["allow"]),
-                        discord.Permissions(perm_data["deny"])
-                    )
-                    
-                    await channel.set_permissions(target, overwrite=permissions)
-        
-        except Exception as e:
-            logging.error(f"Error restoring permissions for {channel.id}: {e}")
-    
-    async def restrict_channel_permissions(self, channel: discord.TextChannel, 
-                                         ticket_holder: discord.Member,
-                                         claimer: discord.Member,
-                                         staff_role: discord.Role) -> str:
-        """Restrict channel permissions and return original permissions JSON."""
-        
-        # Save original permissions
-        original_permissions = await self.save_original_permissions(channel)
-        
-        try:
-            # Get higher staff roles
-            higher_roles = self.get_higher_staff_roles(channel.guild, staff_role)
-            
-            # Remove send message permissions for @everyone
-            await channel.set_permissions(
-                channel.guild.default_role,
-                send_messages=False,
-                view_channel=True  # Keep view permissions
-            )
-            
-            # Remove send message permissions for staff role
-            await channel.set_permissions(
-                staff_role,
-                send_messages=False,
-                view_channel=True
-            )
-            
-            # Allow ticket holder to send messages
-            await channel.set_permissions(
-                ticket_holder,
-                send_messages=True,
-                view_channel=True
-            )
-            
-            # Allow claimer to send messages
-            await channel.set_permissions(
-                claimer,
-                send_messages=True,
-                view_channel=True
-            )
-            
-            # Allow higher staff roles to send messages
-            for role in higher_roles:
-                await channel.set_permissions(
-                    role,
-                    send_messages=True,
-                    view_channel=True
-                )
-            
-            logging.info(f"Restricted permissions for channel {channel.id}")
-            
-        except Exception as e:
-            logging.error(f"Error restricting permissions for {channel.id}: {e}")
-        
-        return original_permissions
-    
-    async def add_officer_permissions(self, channel: discord.TextChannel, officer_role: discord.Role):
-        """Add send message permissions for officer role."""
-        try:
-            await channel.set_permissions(
-                officer_role,
-                send_messages=True,
-                view_channel=True
-            )
-            logging.info(f"Added officer permissions for {officer_role.name} in {channel.id}")
-        except Exception as e:
-            logging.error(f"Error adding officer permissions: {e}")
