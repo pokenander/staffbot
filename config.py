@@ -9,7 +9,7 @@ TIMEOUT_MINUTES = 15
 DATABASE_PATH = "ticket_bot.db"
 
 # Environment variables
-DISCORD_BOT_TOKEN = os.getenv('DISCORD_BOT_TOKEN', 'your_bot_token_here')
+DISCORD_TOKEN = os.getenv('DISCORD_TOKEN', 'your_bot_token_here')
 
 # Default messages
 CLAIM_MESSAGE = "✅ **{username}** has claimed this ticket.\n\n⏰ Timeout will occur after **15 minutes** of inactivity from either party."
