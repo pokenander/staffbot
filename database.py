@@ -121,7 +121,7 @@ class Database:
             ''', (role_id, guild_id))
             conn.commit()
     
-    def add_allowed_category(self, guild_id, category_id):
+   def add_allowed_category(self, guild_id, category_id):
     with sqlite3.connect(self.db_path) as conn:
         cursor = conn.cursor()
         cursor.execute('''
@@ -131,11 +131,6 @@ class Database:
                 UNIQUE(guild_id, category_id)
             )
         ''')
-        cursor.execute('''
-            INSERT OR IGNORE INTO allowed_categories (guild_id, category_id)
-            VALUES (?, ?)
-        ''', (guild_id, category_id))
-        conn.commit()
         cursor.execute('''
             INSERT OR IGNORE INTO allowed_categories (guild_id, category_id)
             VALUES (?, ?)
