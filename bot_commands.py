@@ -30,7 +30,7 @@ class TicketCommands(commands.Cog):
     async def show_leaderboard(self, ctx, period: str = "total", page: int = 1):
         """Show leaderboard. Usage: ?lb [daily/weekly/total] [page]"""
     
-    try:
+        try:
         if period.lower() == "daily":
             await self.bot.leaderboard_manager.send_daily_leaderboard(ctx.channel, page)
         elif period.lower() == "weekly":
