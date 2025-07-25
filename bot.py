@@ -221,15 +221,15 @@ class TicketBot(commands.Bot):
             await super().close()
 
 # === Main runner ===
-    if __name__ == "__main__":
+if __name__ == "__main__":
     # Start web server in background thread
     threading.Thread(target=run_web_server).start()
     
     # Get Discord token
     token = os.environ.get("DISCORD_TOKEN")
     if not token:
-        print("ERROR: DISCORD_TOKEN environment variable not set!")
-        exit(1)
+    print("ERROR: DISCORD_TOKEN environment variable not set!")
+    exit(1)
     
     # Start the Discord bot
     bot = TicketBot()
