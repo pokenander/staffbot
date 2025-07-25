@@ -56,13 +56,10 @@ class TicketBot(commands.Bot):
         """Setup hook called when bot is starting."""
         try:
             # Load commands
-        await self.load_extension('bot_commands')
-            
+            await self.load_extension('bot_commands')
             # Setup scheduled tasks
             self._setup_scheduler()
-            
             logging.info("Bot setup completed successfully")
-            
         except Exception as e:
             logging.error(f"Error during bot setup: {e}")
     
