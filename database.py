@@ -125,16 +125,9 @@ class Database:
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             cursor.execute('''
-                CREATE TABLE IF NOT EXISTS allowed_categories (
-                    guild_id INTEGER,
-                    category_id INTEGER,
-                    UNIQUE(guild_id, category_id)
-                )
-            ''')
-            cursor.execute('''
-                INSERT OR IGNORE INTO allowed_categories (guild_id, category_id)
+                INSERT OR REPLACE INTO guild_config (guild_id, staff_role_id)
                 VALUES (?, ?)
-            ''', (guild_id, category_id))
+            ''', (guild_id, role_id))
             conn.commit()
 
     def remove_allowed_category(self, guild_id, category_id):
