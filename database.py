@@ -129,6 +129,12 @@ class Database:
                 guild_id INTEGER,
                 category_id INTEGER,
                 UNIQUE(guild_id, category_id)
+        ''')
+        cursor.execute('''
+            INSERT OR IGNORE INTO allowed_categories (guild_id, category_id)
+            VALUES (?, ?)
+        ''', (guild_id, category_id))
+        conn.commit()
             )
         ''')
         cursor.execute('''
