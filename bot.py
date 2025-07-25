@@ -221,7 +221,7 @@ class TicketBot(commands.Bot):
             await super().close()
 
 # === Main runner ===
-if __name__ == "__main__":
+    if __name__ == "__main__":
     # Start web server in background thread
     threading.Thread(target=run_web_server).start()
     
