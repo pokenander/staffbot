@@ -48,13 +48,13 @@ class PermissionManager:
             else:
                 original_permissions['staff_member'] = None
             
-            # Remove send_messages permission from staff role only
+            # Remove send_messages permission from staff role but keep view access
             current_staff_perms = channel.overwrites_for(staff_role)
             await channel.set_permissions(
                 staff_role,
-                view_channel=current_staff_perms.view_channel,
+                view_channel=True,  # Ensure staff can still view
                 send_messages=False,  # Remove send permission
-                read_message_history=current_staff_perms.read_message_history
+                read_message_history=True  # Ensure staff can read history
             )
             
             # Give individual send permission to the staff member who claimed
