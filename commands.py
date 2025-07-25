@@ -342,6 +342,30 @@ if allowed_category_ids and (not ctx.channel.category or ctx.channel.category.id
             logging.error(f"Error inviting officers to ticket {ctx.channel.id}: {e}")
             await ctx.send("❌ An error occurred while inviting officers.")
 
+@commands.command(name='addcategory')
+@commands.has_permissions(manage_channels=True)
+async def add_allowed_category(self, ctx, category: discord.CategoryChannel):
+    self.bot.database.add_allowed_category(ctx.guild.id, category.id)
+    await ctx.send(f"✅ Added allowed category: **{category.name}**")
+
+@commands.command(name='removecategory')
+@commands.has_permissions(manage_channels=True)
+async def remove_allowed_category(self, ctx, category: discord.CategoryChannel):
+    self.bot.database.remove_allowed_category(ctx.guild.id, category.id)
+    await ctx.send(f"❌ Removed category: **{category.name}**")
+
+@commands.command(name='listcategories')
+@commands.has_permissions(manage_channels=True)
+async def list_allowed_categories(self, ctx):
+    ids = self.bot.database.get_allowed_categories(ctx.guild.id)
+    if not ids:
+        return await ctx.send("ℹ️ No allowed categories set.")
+    names = []
+    for cat_id in ids:
+        cat = ctx.guild.get_channel(cat_id)
+        names.append(f"- {cat.name if cat else f'Unknown ({cat_id})'}")
+    await ctx.send("📂 Allowed Ticket Categories:\n" + "\n".join(names))
+
     @commands.command(name='test')
     @commands.has_permissions(administrator=True)
     async def test_timeout(self, ctx, channel_id: int = None):
