@@ -45,7 +45,8 @@ class TicketCommands(commands.Cog):
             return
         
         # Check if category restriction is set and channel is in allowed category
-        if allowed_category_id and (not ctx.channel.category or ctx.channel.category.id != allowed_category_id):
+        allowed_category_ids = self.bot.database.get_allowed_categories(ctx.guild.id)
+if allowed_category_ids and (not ctx.channel.category or ctx.channel.category.id not in allowed_category_ids):
             await ctx.send("❌ This command can only be used in the configured ticket category.")
             return
         
