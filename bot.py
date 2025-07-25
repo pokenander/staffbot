@@ -9,7 +9,7 @@ import pytz
 
 from database import Database
 from permissions import PermissionManager
-from timeouts import TimeoutManager
+from timeout_manager import TimeoutManager
 from leaderboard import LeaderboardManager
 from config import BOT_PREFIX, DATABASE_PATH, TIMEZONE
 
@@ -43,11 +43,11 @@ class TicketBot(commands.Bot):
             help_command=None
         )
         
-        # Initialize components
+        # Initialize components - FIXED NAMES
         self.database = Database(DATABASE_PATH)
-        self.permission_manager = PermissionManager(self)
+        self.permissions = PermissionManager(self)  # Changed from permission_manager
         self.timeout_manager = TimeoutManager(self)
-        self.leaderboard_manager = LeaderboardManager(self)
+        self.leaderboard = LeaderboardManager(self)  # Changed from leaderboard_manager
         
         # Initialize scheduler
         self.scheduler = AsyncIOScheduler(timezone=pytz.timezone(TIMEZONE))
@@ -89,8 +89,8 @@ class TicketBot(commands.Bot):
             # Send leaderboards to configured channels before reset
             await self._send_daily_leaderboards()
             
-            # Reset daily leaderboard
-            self.leaderboard_manager.reset_daily_leaderboard()
+            # Reset daily leaderboard - FIXED NAME
+            await self.leaderboard.reset_daily_scores()
             logging.info("Daily leaderboard reset completed")
         except Exception as e:
             logging.error(f"Error in daily reset: {e}")
@@ -103,7 +103,8 @@ class TicketBot(commands.Bot):
             for guild_id, channel_id in leaderboard_channels:
                 channel = self.get_channel(channel_id)
                 if channel and isinstance(channel, discord.TextChannel):
-                    await self.leaderboard_manager.send_combined_leaderboard(channel)
+                    # FIXED NAME
+                    await self.leaderboard.send_leaderboard(channel, "daily")
                     logging.info(f"Sent daily leaderboard to channel {channel_id}")
                 else:
                     logging.warning(f"Leaderboard channel {channel_id} not found or invalid, cleaning up config")
@@ -120,7 +121,8 @@ class TicketBot(commands.Bot):
     async def _weekly_reset(self):
         """Weekly leaderboard reset task."""
         try:
-            self.leaderboard_manager.reset_weekly_leaderboard()
+            # FIXED NAME
+            await self.leaderboard.reset_weekly_scores()
             logging.info("Weekly leaderboard reset completed")
         except Exception as e:
             logging.error(f"Error in weekly reset: {e}")
