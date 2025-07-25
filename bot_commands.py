@@ -28,7 +28,7 @@ class TicketCommands(commands.Cog):
 
     @commands.command(name='lb', aliases=['leaderboard'])
     async def show_leaderboard(self, ctx, period: str = "total", page: int = 1):
-    """Show leaderboard. Usage: ?lb [daily/weekly/total] [page]"""
+        """Show leaderboard. Usage: ?lb [daily/weekly/total] [page]"""
     
     try:
         if period.lower() == "daily":
@@ -44,7 +44,7 @@ class TicketCommands(commands.Cog):
     @commands.command(name='leaderboardchannel')
     @commands.has_permissions(administrator=True)
     async def set_leaderboard_channel(self, ctx, channel: discord.TextChannel = None):
-    """Set channel for automatic leaderboard posting. Usage: ?leaderboardchannel #channel"""
+        """Set channel for automatic leaderboard posting. Usage: ?leaderboardchannel #channel"""
     
     if not channel:
         channel = ctx.channel
@@ -56,7 +56,7 @@ class TicketCommands(commands.Cog):
     @commands.command(name='testtimeout')
     @commands.has_permissions(administrator=True)
     async def test_timeout(self, ctx, minutes: int = 1):
-    """Test timeout functionality. Usage: ?testtimeout [minutes]"""
+        """Test timeout functionality. Usage: ?testtimeout [minutes]"""
     
     if not self._is_ticket_channel(ctx.channel):
         await ctx.send("❌ This command can only be used in ticket channels.")
@@ -78,7 +78,7 @@ class TicketCommands(commands.Cog):
     @commands.command(name='readperms')
     @commands.has_permissions(administrator=True)
     async def set_staff_role(self, ctx, role: discord.Role = None, role_type: str = None):
-    """Set staff or officer role. Usage: ?readperms @role or ?readperms @role officer"""
+        """Set staff or officer role. Usage: ?readperms @role or ?readperms @role officer"""
     
     if not role:
         await ctx.send("❌ Please mention a role.\n**Usage:** `?readperms @role` or `?readperms @role officer`")
@@ -98,7 +98,7 @@ class TicketCommands(commands.Cog):
     @commands.command(name='addcat')
     @commands.has_permissions(administrator=True) 
     async def add_category(self, ctx, *, category_name=None):
-    """Add a category where ticket commands can be used. Usage: ?addcat category-name"""
+        """Add a category where ticket commands can be used. Usage: ?addcat category-name"""
     
     if not category_name:
         await ctx.send("❌ Please specify a category name.\n**Usage:** `?addcat category-name`")
