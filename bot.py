@@ -9,7 +9,7 @@ import pytz
 
 from database import Database
 from permissions import PermissionManager
-from timeout_manager import TimeoutManager
+from timeouts import TimeoutManager
 from leaderboard import LeaderboardManager
 from config import BOT_PREFIX, DATABASE_PATH, TIMEZONE
 
