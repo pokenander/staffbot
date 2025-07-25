@@ -87,6 +87,18 @@ class LeaderboardManager:
             logging.error(f"Error sending leaderboard to {channel.id}: {e}")
             await channel.send("❌ Error generating leaderboard.")
 
+    async def send_daily_leaderboard(self, channel: discord.TextChannel, page: int = 1):
+        """Send daily leaderboard."""
+        await self.send_leaderboard(channel, "daily", page)
+
+    async def send_weekly_leaderboard(self, channel: discord.TextChannel, page: int = 1):
+        """Send weekly leaderboard."""
+        await self.send_leaderboard(channel, "weekly", page)
+
+    async def send_total_leaderboard(self, channel: discord.TextChannel, page: int = 1):
+        """Send total leaderboard."""
+        await self.send_leaderboard(channel, "total", page)
+
     async def send_combined_leaderboard(self, channel: discord.TextChannel):
         """Send all three leaderboards in one message."""
         try:
@@ -111,41 +123,3 @@ class LeaderboardManager:
                         except Exception:
                             username = f"User {user_id}"
                         medal = "🥇🥈🥉"[i] if i < 3 else f"{i + 1}."
-                        field_text += f"{medal} {username} - {claims}\n"
-                else:
-                    field_text = "No claims yet"
-
-                embed.add_field(
-                    name=f"{period_emoji} Leaderboard",
-                    value=field_text,
-                    inline=True
-                )
-
-            embed.add_field(
-                name="📋 Commands",
-                value="`?lb daily` • `?lb weekly` • `?lb total`\n`?claim @user` to start earning points!",
-                inline=False
-            )
-
-            embed.set_footer(text="Leaderboards reset: Daily at 00:00 GMT+2, Weekly on Mondays")
-            await channel.send(embed=embed)
-
-        except Exception as e:
-            logging.error(f"Error sending combined leaderboard to {channel.id}: {e}")
-            await channel.send("❌ Error generating leaderboards.")
-
-    def reset_daily_leaderboard(self):
-        """Reset daily leaderboard."""
-        try:
-            self.bot.database.reset_daily_leaderboard()
-            logging.info("Daily leaderboard reset completed")
-        except Exception as e:
-            logging.error(f"Error resetting daily leaderboard: {e}")
-
-    def reset_weekly_leaderboard(self):
-        """Reset weekly leaderboard."""
-        try:
-            self.bot.database.reset_weekly_leaderboard()
-            logging.info("Weekly leaderboard reset completed")
-        except Exception as e:
-            logging.error(f"Error resetting weekly leaderboard: {e}")
