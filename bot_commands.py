@@ -28,46 +28,20 @@ class TicketCommands(commands.Cog):
 
 @commands.command(name='readperms')
 @commands.has_permissions(administrator=True)
-async def set_staff_role(self, ctx, arg1=None, arg2=None):
-    """Set staff or officer role. Usage: ?readperms @role or ?readperms officer @role"""
+async def set_staff_role(self, ctx, role: discord.Role = None, role_type: str = None):
+    """Set staff or officer role. Usage: ?readperms @role or ?readperms @role officer"""
     
-    if not arg1:
-        await ctx.send("❌ Please specify a role.\n**Usage:** `?readperms @role` or `?readperms officer @role`")
+    if not role:
+        await ctx.send("❌ Please mention a role.\n**Usage:** `?readperms @role` or `?readperms @role officer`")
         return
     
-    # Check if first argument is "officer"
-    if arg1.lower() == "officer":
-        if not arg2:
-            await ctx.send("❌ Please mention the officer role.\n**Usage:** `?readperms officer @role`")
-            return
-        
-        # Try to convert arg2 to role
-        try:
-            if isinstance(arg2, str) and arg2.startswith('<@&'):
-                role_id = int(arg2.strip('<@&>'))
-                role = ctx.guild.get_role(role_id)
-            else:
-                role = await commands.RoleConverter().convert(ctx, arg2)
-        except:
-            await ctx.send("❌ Invalid role mentioned.")
-            return
-            
+    if role_type and role_type.lower() == "officer":
         # Set officer role
         self.bot.database.set_guild_config(ctx.guild.id, officer_role_id=role.id)
         await ctx.send(f"✅ Officer role set to **{role.name}**")
         logging.info(f"Officer role set to {role.id} in guild {ctx.guild.id}")
     else:
-        # First argument should be the staff role
-        try:
-            if isinstance(arg1, str) and arg1.startswith('<@&'):
-                role_id = int(arg1.strip('<@&>'))
-                role = ctx.guild.get_role(role_id)
-            else:
-                role = await commands.RoleConverter().convert(ctx, arg1)
-        except:
-            await ctx.send("❌ Invalid role mentioned.")
-            return
-            
+        # Set staff role (default)
         self.bot.database.set_guild_config(ctx.guild.id, staff_role_id=role.id)
         await ctx.send(f"✅ Staff role set to **{role.name}**")
         logging.info(f"Staff role set to {role.id} in guild {ctx.guild.id}")
