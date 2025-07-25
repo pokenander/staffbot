@@ -121,37 +121,37 @@ class Database:
             ''', (role_id, guild_id))
             conn.commit()
     
-   def add_allowed_category(self, guild_id, category_id):
-    with sqlite3.connect(self.db_path) as conn:
-        cursor = conn.cursor()
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS allowed_categories (
-                guild_id INTEGER,
-                category_id INTEGER,
-                UNIQUE(guild_id, category_id)
-            )
-        ''')
-        cursor.execute('''
-            INSERT OR IGNORE INTO allowed_categories (guild_id, category_id)
-            VALUES (?, ?)
-        ''', (guild_id, category_id))
-        conn.commit()
+       def add_allowed_category(self, guild_id, category_id):
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS allowed_categories (
+                    guild_id INTEGER,
+                    category_id INTEGER,
+                    UNIQUE(guild_id, category_id)
+                )
+            ''')
+            cursor.execute('''
+                INSERT OR IGNORE INTO allowed_categories (guild_id, category_id)
+                VALUES (?, ?)
+            ''', (guild_id, category_id))
+            conn.commit()
 
-def remove_allowed_category(self, guild_id, category_id):
-    with sqlite3.connect(self.db_path) as conn:
-        cursor = conn.cursor()
-        cursor.execute('''
-            DELETE FROM allowed_categories WHERE guild_id = ? AND category_id = ?
-        ''', (guild_id, category_id))
-        conn.commit()
+    def remove_allowed_category(self, guild_id, category_id):
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                DELETE FROM allowed_categories WHERE guild_id = ? AND category_id = ?
+            ''', (guild_id, category_id))
+            conn.commit()
 
-def get_allowed_categories(self, guild_id):
-    with sqlite3.connect(self.db_path) as conn:
-        cursor = conn.cursor()
-        cursor.execute('''
-            SELECT category_id FROM allowed_categories WHERE guild_id = ?
-        ''', (guild_id,))
-        return [row[0] for row in cursor.fetchall()]
+    def get_allowed_categories(self, guild_id):
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT category_id FROM allowed_categories WHERE guild_id = ?
+            ''', (guild_id,))
+            return [row[0] for row in cursor.fetchall()]
 
 
     def set_leaderboard_channel(self, guild_id: int, channel_id: int):
