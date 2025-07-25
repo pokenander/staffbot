@@ -28,9 +28,9 @@ def run_flask():
 
 async def start_bot():
     """Starts the Discord bot."""
-    bot_token = os.getenv('DISCORD_BOT_TOKEN', 'your_bot_token_here')
+    bot_token = os.getenv('DISCORD_TOKEN', 'your_bot_token_here')
     if not bot_token or bot_token == 'your_bot_token_here':
-        logging.error("DISCORD_BOT_TOKEN environment variable not set")
+        logging.error("DISCORD_TOKEN environment variable not set")
         return
 
     bot = TicketBot()
