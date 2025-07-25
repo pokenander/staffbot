@@ -29,92 +29,201 @@ class TicketCommands(commands.Cog):
     @commands.command(name='lb', aliases=['leaderboard'])
     async def show_leaderboard(self, ctx, period: str = "total", page: int = 1):
         """Show leaderboard. Usage: ?lb [daily/weekly/total] [page]"""
-    
+        
         try:
-        if period.lower() == "daily":
-            await self.bot.leaderboard_manager.send_daily_leaderboard(ctx.channel, page)
-        elif period.lower() == "weekly":
-            await self.bot.leaderboard_manager.send_weekly_leaderboard(ctx.channel, page)
-        else:
-            await self.bot.leaderboard_manager.send_total_leaderboard(ctx.channel, page)
-    except Exception as e:
-        logging.error(f"Error showing leaderboard: {e}")
-        await ctx.send("❌ An error occurred while fetching the leaderboard.")
+            if period.lower() == "daily":
+                await self.bot.leaderboard_manager.send_daily_leaderboard(ctx.channel, page)
+            elif period.lower() == "weekly":
+                await self.bot.leaderboard_manager.send_weekly_leaderboard(ctx.channel, page)
+            else:
+                await self.bot.leaderboard_manager.send_total_leaderboard(ctx.channel, page)
+        except Exception as e:
+            logging.error(f"Error showing leaderboard: {e}")
+            await ctx.send("❌ An error occurred while fetching the leaderboard.")
 
     @commands.command(name='leaderboardchannel')
     @commands.has_permissions(administrator=True)
     async def set_leaderboard_channel(self, ctx, channel: discord.TextChannel = None):
         """Set channel for automatic leaderboard posting. Usage: ?leaderboardchannel #channel"""
-    
-    if not channel:
-        channel = ctx.channel
-    
-    self.bot.database.set_guild_config(ctx.guild.id, leaderboard_channel_id=channel.id)
-    await ctx.send(f"✅ Leaderboard channel set to {channel.mention}")
-    logging.info(f"Leaderboard channel set to {channel.id} in guild {ctx.guild.id}")
+        
+        if not channel:
+            channel = ctx.channel
+        
+        self.bot.database.set_guild_config(ctx.guild.id, leaderboard_channel_id=channel.id)
+        await ctx.send(f"✅ Leaderboard channel set to {channel.mention}")
+        logging.info(f"Leaderboard channel set to {channel.id} in guild {ctx.guild.id}")
 
     @commands.command(name='testtimeout')
     @commands.has_permissions(administrator=True)
     async def test_timeout(self, ctx, minutes: int = 1):
         """Test timeout functionality. Usage: ?testtimeout [minutes]"""
-    
-    if not self._is_ticket_channel(ctx.channel):
-        await ctx.send("❌ This command can only be used in ticket channels.")
-        return
-    
-    # Check if there's an active timeout
-    timeout_info = self.bot.database.get_timeout_info(ctx.channel.id)
-    if not timeout_info:
-        await ctx.send("❌ This ticket is not currently claimed.")
-        return
-    
-    # Modify timeout for testing
-    import datetime
-    new_timeout = datetime.datetime.now() + datetime.timedelta(minutes=minutes)
-    
-    await ctx.send(f"⏰ Timeout set to {minutes} minute(s) for testing.")
-    logging.info(f"Test timeout set for {minutes} minutes in channel {ctx.channel.id}")
+        
+        if not self._is_ticket_channel(ctx.channel):
+            await ctx.send("❌ This command can only be used in ticket channels.")
+            return
+        
+        # Check if there's an active timeout
+        timeout_info = self.bot.database.get_timeout_info(ctx.channel.id)
+        if not timeout_info:
+            await ctx.send("❌ This ticket is not currently claimed.")
+            return
+        
+        # Modify timeout for testing
+        import datetime
+        new_timeout = datetime.datetime.now() + datetime.timedelta(minutes=minutes)
+        
+        await ctx.send(f"⏰ Timeout set to {minutes} minute(s) for testing.")
+        logging.info(f"Test timeout set for {minutes} minutes in channel {ctx.channel.id}")
 
     @commands.command(name='readperms')
     @commands.has_permissions(administrator=True)
     async def set_staff_role(self, ctx, role: discord.Role = None, role_type: str = None):
         """Set staff or officer role. Usage: ?readperms @role or ?readperms @role officer"""
-    
-    if not role:
-        await ctx.send("❌ Please mention a role.\n**Usage:** `?readperms @role` or `?readperms @role officer`")
-        return
-    
-    if role_type and role_type.lower() == "officer":
-        # Set officer role
-        self.bot.database.set_guild_config(ctx.guild.id, officer_role_id=role.id)
-        await ctx.send(f"✅ Officer role set to **{role.name}**")
-        logging.info(f"Officer role set to {role.id} in guild {ctx.guild.id}")
-    else:
-        # Set staff role (default)
-        self.bot.database.set_guild_config(ctx.guild.id, staff_role_id=role.id)
-        await ctx.send(f"✅ Staff role set to **{role.name}**")
-        logging.info(f"Staff role set to {role.id} in guild {ctx.guild.id}")
+        
+        if not role:
+            await ctx.send("❌ Please mention a role.\n**Usage:** `?readperms @role` or `?readperms @role officer`")
+            return
+        
+        if role_type and role_type.lower() == "officer":
+            # Set officer role
+            self.bot.database.set_guild_config(ctx.guild.id, officer_role_id=role.id)
+            await ctx.send(f"✅ Officer role set to **{role.name}**")
+            logging.info(f"Officer role set to {role.id} in guild {ctx.guild.id}")
+        else:
+            # Set staff role (default)
+            self.bot.database.set_guild_config(ctx.guild.id, staff_role_id=role.id)
+            await ctx.send(f"✅ Staff role set to **{role.name}**")
+            logging.info(f"Staff role set to {role.id} in guild {ctx.guild.id}")
 
     @commands.command(name='addcat')
     @commands.has_permissions(administrator=True) 
     async def add_category(self, ctx, *, category_name=None):
         """Add a category where ticket commands can be used. Usage: ?addcat category-name"""
-    
-    if not category_name:
-        await ctx.send("❌ Please specify a category name.\n**Usage:** `?addcat category-name`")
-        return
-    
-    # Find category by name
-    category = discord.utils.get(ctx.guild.categories, name=category_name)
-    
-    if not category:
-        await ctx.send(f"❌ Category '{category_name}' not found.")
-        return
         
-    # Add category to allowed list
-    self.bot.database.add_allowed_category(ctx.guild.id, category.id)
-    await ctx.send(f"✅ Category **{category.name}** added to allowed ticket categories.")
-    logging.info(f"Category {category.id} added to guild {ctx.guild.id}")
+        if not category_name:
+            await ctx.send("❌ Please specify a category name.\n**Usage:** `?addcat category-name`")
+            return
+        
+        Perfect! Now I have the complete file. I can see there are several indentation issues throughout. Here's the **COMPLETE corrected version** of your entire `bot_commands.py` file:
+
+```python
+import discord
+from discord.ext import commands
+import logging
+from config import CLAIM_MESSAGE
+
+class TicketCommands(commands.Cog):
+    def __init__(self, bot):
+        self.bot = bot
+
+    def _is_ticket_channel(self, channel):
+        """Check if channel is a ticket channel."""
+        ticket_keywords = ['ticket', 'support', 'help']
+        channel_name = channel.name.lower()
+        
+        # Check if channel name contains ticket-related keywords
+        for keyword in ticket_keywords:
+            if keyword in channel_name:
+                return True
+        
+        # Check channel category
+        if channel.category:
+            category_name = channel.category.name.lower()
+            for keyword in ticket_keywords:
+                if keyword in category_name:
+                    return True
+        
+        return False
+
+    @commands.command(name='lb', aliases=['leaderboard'])
+    async def show_leaderboard(self, ctx, period: str = "total", page: int = 1):
+        """Show leaderboard. Usage: ?lb [daily/weekly/total] [page]"""
+        
+        try:
+            if period.lower() == "daily":
+                await self.bot.leaderboard_manager.send_daily_leaderboard(ctx.channel, page)
+            elif period.lower() == "weekly":
+                await self.bot.leaderboard_manager.send_weekly_leaderboard(ctx.channel, page)
+            else:
+                await self.bot.leaderboard_manager.send_total_leaderboard(ctx.channel, page)
+        except Exception as e:
+            logging.error(f"Error showing leaderboard: {e}")
+            await ctx.send("❌ An error occurred while fetching the leaderboard.")
+
+    @commands.command(name='leaderboardchannel')
+    @commands.has_permissions(administrator=True)
+    async def set_leaderboard_channel(self, ctx, channel: discord.TextChannel = None):
+        """Set channel for automatic leaderboard posting. Usage: ?leaderboardchannel #channel"""
+        
+        if not channel:
+            channel = ctx.channel
+        
+        self.bot.database.set_guild_config(ctx.guild.id, leaderboard_channel_id=channel.id)
+        await ctx.send(f"✅ Leaderboard channel set to {channel.mention}")
+        logging.info(f"Leaderboard channel set to {channel.id} in guild {ctx.guild.id}")
+
+    @commands.command(name='testtimeout')
+    @commands.has_permissions(administrator=True)
+    async def test_timeout(self, ctx, minutes: int = 1):
+        """Test timeout functionality. Usage: ?testtimeout [minutes]"""
+        
+        if not self._is_ticket_channel(ctx.channel):
+            await ctx.send("❌ This command can only be used in ticket channels.")
+            return
+        
+        # Check if there's an active timeout
+        timeout_info = self.bot.database.get_timeout_info(ctx.channel.id)
+        if not timeout_info:
+            await ctx.send("❌ This ticket is not currently claimed.")
+            return
+        
+        # Modify timeout for testing
+        import datetime
+        new_timeout = datetime.datetime.now() + datetime.timedelta(minutes=minutes)
+        
+        await ctx.send(f"⏰ Timeout set to {minutes} minute(s) for testing.")
+        logging.info(f"Test timeout set for {minutes} minutes in channel {ctx.channel.id}")
+
+    @commands.command(name='readperms')
+    @commands.has_permissions(administrator=True)
+    async def set_staff_role(self, ctx, role: discord.Role = None, role_type: str = None):
+        """Set staff or officer role. Usage: ?readperms @role or ?readperms @role officer"""
+        
+        if not role:
+            await ctx.send("❌ Please mention a role.\n**Usage:** `?readperms @role` or `?readperms @role officer`")
+            return
+        
+        if role_type and role_type.lower() == "officer":
+            # Set officer role
+            self.bot.database.set_guild_config(ctx.guild.id, officer_role_id=role.id)
+            await ctx.send(f"✅ Officer role set to **{role.name}**")
+            logging.info(f"Officer role set to {role.id} in guild {ctx.guild.id}")
+        else:
+            # Set staff role (default)
+            self.bot.database.set_guild_config(ctx.guild.id, staff_role_id=role.id)
+            await ctx.send(f"✅ Staff role set to **{role.name}**")
+            logging.info(f"Staff role set to {role.id} in guild {ctx.guild.id}")
+
+    @commands.command(name='addcat')
+    @commands.has_permissions(administrator=True) 
+    async def add_category(self, ctx, *, category_name=None):
+        """Add a category where ticket commands can be used. Usage: ?addcat category-name"""
+        
+        if not category_name:
+            await ctx.send("❌ Please specify a category name.\n**Usage:** `?addcat category-name`")
+            return
+        
+        # Find category by name
+        category = discord.utils.get(ctx.guild.categories, name=category_name)
+        
+        if not category:
+            await ctx.send(f"❌ Category '{category_name}' not found.")
+            return
+            
+        # Add category to allowed list
+        self.bot.database.add_allowed_category(ctx.guild.id, category.id)
+        await ctx.send(f"✅ Category **{category.name}** added to allowed ticket categories.")
+        logging.info(f"Category {category.id} added to guild {ctx.guild.id}")
 
     @commands.command(name='removecat')
     @commands.has_permissions(administrator=True)
@@ -474,26 +583,32 @@ class TicketCommands(commands.Cog):
     @commands.command(name='addcategory')
     @commands.has_permissions(manage_channels=True)
     async def add_allowed_category(self, ctx, category: discord.CategoryChannel):
-    self.bot.database.add_allowed_category(ctx.guild.id, category.id)
-    await ctx.send(f"✅ Added allowed category: **{category.name}**")
+        """Add allowed category for ticket commands."""
+        
+        self.bot.database.add_allowed_category(ctx.guild.id, category.id)
+        await ctx.send(f"✅ Added allowed category: **{category.name}**")
 
     @commands.command(name='removecategory')
     @commands.has_permissions(manage_channels=True)
     async def remove_allowed_category(self, ctx, category: discord.CategoryChannel):
-    self.bot.database.remove_allowed_category(ctx.guild.id, category.id)
-    await ctx.send(f"❌ Removed category: **{category.name}**")
+        """Remove allowed category for ticket commands."""
+        
+        self.bot.database.remove_allowed_category(ctx.guild.id, category.id)
+        await ctx.send(f"❌ Removed category: **{category.name}**")
 
     @commands.command(name='listcategories')
     @commands.has_permissions(manage_channels=True)
     async def list_allowed_categories(self, ctx):
-    ids = self.bot.database.get_allowed_categories(ctx.guild.id)
-    if not ids:
-        return await ctx.send("ℹ️ No allowed categories set.")
-    names = []
-    for cat_id in ids:
-        cat = ctx.guild.get_channel(cat_id)
-        names.append(f"- {cat.name if cat else f'Unknown ({cat_id})'}")
-    await ctx.send("📂 Allowed Ticket Categories:\n" + "\n".join(names))
+        """List all allowed categories for ticket commands."""
+        
+        ids = self.bot.database.get_allowed_categories(ctx.guild.id)
+        if not ids:
+            return await ctx.send("ℹ️ No allowed categories set.")
+        names = []
+        for cat_id in ids:
+            cat = ctx.guild.get_channel(cat_id)
+            names.append(f"- {cat.name if cat else f'Unknown ({cat_id})'}")
+        await ctx.send("📂 Allowed Ticket Categories:\n" + "\n".join(names))
 
     @commands.command(name='test')
     @commands.has_permissions(administrator=True)
@@ -526,15 +641,6 @@ class TicketCommands(commands.Cog):
             logging.error(f"Error setting test timeout for channel {channel_id}: {e}")
             await ctx.send("❌ An error occurred while setting test timeout.")
 
-    @commands.command(name='readperms')
-    @commands.has_permissions(manage_roles=True)
-    async def set_staff_role(self, ctx, role: discord.Role):
-        """Set the staff role that can claim tickets. Usage: ?readperms @role"""
-        
-        self.bot.database.set_staff_role(ctx.guild.id, role.id)
-        await ctx.send(f"✅ Staff role set to **{role.name}**.")
-        logging.info(f"Staff role set to {role.id} for guild {ctx.guild.id}")
-
     @commands.command(name='officerrole')
     @commands.has_permissions(manage_roles=True)
     async def set_officer_role(self, ctx, role: discord.Role):
@@ -552,99 +658,6 @@ class TicketCommands(commands.Cog):
         self.bot.database.set_allowed_category(ctx.guild.id, category.id)
         await ctx.send(f"✅ Ticket commands restricted to **{category.name}** category.")
         logging.info(f"Allowed category set to {category.id} for guild {ctx.guild.id}")
-
-    @commands.command(name='leaderboardchannel')
-    @commands.has_permissions(manage_channels=True)
-    async def set_leaderboard_channel(self, ctx, channel: discord.TextChannel = None):
-        """Set the channel for automatic leaderboard updates. Usage: ?leaderboardchannel #channel"""
-        
-        if not channel:
-            channel = ctx.channel
-        
-        self.bot.database.set_leaderboard_channel(ctx.guild.id, channel.id)
-        await ctx.send(f"✅ Automatic leaderboard updates will be sent to {channel.mention}.")
-        logging.info(f"Leaderboard channel set to {channel.id} for guild {ctx.guild.id}")
-
-    @commands.command(name='lb', aliases=['leaderboard'])
-    async def show_leaderboard(self, ctx, period: str = "total", page: str = "1"):
-        """Show leaderboard with pagination. Usage: ?lb [daily|weekly|total] [page]"""
-        
-        valid_periods = ["daily", "weekly", "total"]
-        if period.lower() not in valid_periods:
-            await ctx.send(f"❌ Invalid period. Use: {', '.join(valid_periods)}")
-            return
-        
-        # Parse page number
-        try:
-            page_num = int(page)
-            if page_num < 1:
-                page_num = 1
-        except (ValueError, TypeError):
-            page_num = 1
-        
-        await self.bot.leaderboard_manager.send_leaderboard(ctx.channel, period.lower(), page_num)
-
-    @commands.command(name='help')
-    async def help_command(self, ctx):
-        """Show bot help information."""
-        
-        embed = discord.Embed(
-            title="🎫 Ticket Bot Commands",
-            description="Manage tickets and track leaderboards",
-            color=discord.Color.blue()
-        )
-        
-        # Ticket commands
-        embed.add_field(
-            name="🎯 Ticket Commands",
-            value=(
-                "`?claim @user` - Claim a ticket for a user\n"
-                "`?reclaim @user` - Reclaim a timed-out ticket\n"
-                "`?unclaim` - Unclaim your ticket\n"
-                "`?officer` - Invite officers to help\n"
-                "`?ticketholder @user` - Set ticket holder"
-            ),
-            inline=False
-        )
-        
-        # Leaderboard commands
-        embed.add_field(
-            name="🏆 Leaderboard Commands",
-            value=(
-                "`?lb daily` - Show daily leaderboard\n"
-                "`?lb weekly` - Show weekly leaderboard\n"
-                "`?lb total` - Show all-time leaderboard\n"
-                "`?lb [period] [page]` - Show specific page (10 per page)"
-            ),
-            inline=False
-        )
-        
-        # Admin commands
-        embed.add_field(
-            name="⚙️ Admin Commands",
-            value=(
-                "`?readperms @role` - Set staff role\n"
-                "`?officerrole @role` - Set officer role\n"
-                "`?category #category` - Set allowed category\n"
-                "`?leaderboardchannel #channel` - Set leaderboard channel\n"
-                "`?test <channel_id>` - Test timeout (admins only)"
-            ),
-            inline=False
-        )
-        
-        embed.add_field(
-            name="ℹ️ Information",
-            value=(
-                "• Timeouts occur after 15 minutes of inactivity\n"
-                "• Points are awarded for successful ticket completion\n"
-                "• Daily leaderboard resets at 00:00 GMT+2\n"
-                "• Weekly leaderboard resets every Monday"
-            ),
-            inline=False
-        )
-        
-        embed.set_footer(text="Need help? Contact your server administrators.")
-        await ctx.send(embed=embed)
 
 async def setup(bot):
     await bot.add_cog(TicketCommands(bot))
