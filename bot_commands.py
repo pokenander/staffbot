@@ -26,8 +26,8 @@ class TicketCommands(commands.Cog):
         
         return False
 
-@commands.command(name='lb', aliases=['leaderboard'])
-async def show_leaderboard(self, ctx, period: str = "total", page: int = 1):
+    @commands.command(name='lb', aliases=['leaderboard'])
+    async def show_leaderboard(self, ctx, period: str = "total", page: int = 1):
     """Show leaderboard. Usage: ?lb [daily/weekly/total] [page]"""
     
     try:
@@ -41,9 +41,9 @@ async def show_leaderboard(self, ctx, period: str = "total", page: int = 1):
         logging.error(f"Error showing leaderboard: {e}")
         await ctx.send("❌ An error occurred while fetching the leaderboard.")
 
-@commands.command(name='leaderboardchannel')
-@commands.has_permissions(administrator=True)
-async def set_leaderboard_channel(self, ctx, channel: discord.TextChannel = None):
+    @commands.command(name='leaderboardchannel')
+    @commands.has_permissions(administrator=True)
+    async def set_leaderboard_channel(self, ctx, channel: discord.TextChannel = None):
     """Set channel for automatic leaderboard posting. Usage: ?leaderboardchannel #channel"""
     
     if not channel:
@@ -53,9 +53,9 @@ async def set_leaderboard_channel(self, ctx, channel: discord.TextChannel = None
     await ctx.send(f"✅ Leaderboard channel set to {channel.mention}")
     logging.info(f"Leaderboard channel set to {channel.id} in guild {ctx.guild.id}")
 
-@commands.command(name='testtimeout')
-@commands.has_permissions(administrator=True)
-async def test_timeout(self, ctx, minutes: int = 1):
+    @commands.command(name='testtimeout')
+    @commands.has_permissions(administrator=True)
+    async def test_timeout(self, ctx, minutes: int = 1):
     """Test timeout functionality. Usage: ?testtimeout [minutes]"""
     
     if not self._is_ticket_channel(ctx.channel):
@@ -75,9 +75,9 @@ async def test_timeout(self, ctx, minutes: int = 1):
     await ctx.send(f"⏰ Timeout set to {minutes} minute(s) for testing.")
     logging.info(f"Test timeout set for {minutes} minutes in channel {ctx.channel.id}")
 
-@commands.command(name='readperms')
-@commands.has_permissions(administrator=True)
-async def set_staff_role(self, ctx, role: discord.Role = None, role_type: str = None):
+    @commands.command(name='readperms')
+    @commands.has_permissions(administrator=True)
+    async def set_staff_role(self, ctx, role: discord.Role = None, role_type: str = None):
     """Set staff or officer role. Usage: ?readperms @role or ?readperms @role officer"""
     
     if not role:
@@ -95,9 +95,9 @@ async def set_staff_role(self, ctx, role: discord.Role = None, role_type: str = 
         await ctx.send(f"✅ Staff role set to **{role.name}**")
         logging.info(f"Staff role set to {role.id} in guild {ctx.guild.id}")
 
-@commands.command(name='addcat')
-@commands.has_permissions(administrator=True) 
-async def add_category(self, ctx, *, category_name=None):
+    @commands.command(name='addcat')
+    @commands.has_permissions(administrator=True) 
+    async def add_category(self, ctx, *, category_name=None):
     """Add a category where ticket commands can be used. Usage: ?addcat category-name"""
     
     if not category_name:
@@ -471,21 +471,21 @@ async def add_category(self, ctx, *, category_name=None):
             logging.error(f"Error inviting officers to ticket {ctx.channel.id}: {e}")
             await ctx.send("❌ An error occurred while inviting officers.")
 
-@commands.command(name='addcategory')
-@commands.has_permissions(manage_channels=True)
-async def add_allowed_category(self, ctx, category: discord.CategoryChannel):
+    @commands.command(name='addcategory')
+    @commands.has_permissions(manage_channels=True)
+    async def add_allowed_category(self, ctx, category: discord.CategoryChannel):
     self.bot.database.add_allowed_category(ctx.guild.id, category.id)
     await ctx.send(f"✅ Added allowed category: **{category.name}**")
 
-@commands.command(name='removecategory')
-@commands.has_permissions(manage_channels=True)
-async def remove_allowed_category(self, ctx, category: discord.CategoryChannel):
+    @commands.command(name='removecategory')
+    @commands.has_permissions(manage_channels=True)
+    async def remove_allowed_category(self, ctx, category: discord.CategoryChannel):
     self.bot.database.remove_allowed_category(ctx.guild.id, category.id)
     await ctx.send(f"❌ Removed category: **{category.name}**")
 
-@commands.command(name='listcategories')
-@commands.has_permissions(manage_channels=True)
-async def list_allowed_categories(self, ctx):
+    @commands.command(name='listcategories')
+    @commands.has_permissions(manage_channels=True)
+    async def list_allowed_categories(self, ctx):
     ids = self.bot.database.get_allowed_categories(ctx.guild.id)
     if not ids:
         return await ctx.send("ℹ️ No allowed categories set.")
