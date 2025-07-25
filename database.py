@@ -169,7 +169,7 @@ class Database:
     def set_guild_config(self, guild_id: int, staff_role_id=None, officer_role_id=None, leaderboard_channel_id=None):
         """Set guild configuration parameters."""
         with sqlite3.connect(self.db_path) as conn:
-        cursor = conn.cursor()
+            cursor = conn.cursor()
         
         # Insert guild if it doesn't exist
         cursor.execute('''
