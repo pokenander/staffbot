@@ -228,8 +228,8 @@ if __name__ == "__main__":
     # Get Discord token
     token = os.environ.get("DISCORD_TOKEN")
     if not token:
-    print("ERROR: DISCORD_TOKEN environment variable not set!")
-    exit(1)
+        print("ERROR: DISCORD_TOKEN environment variable not set!")
+        exit(1)
     
     # Start the Discord bot
     bot = TicketBot()
