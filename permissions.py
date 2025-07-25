@@ -66,15 +66,19 @@ class PermissionManager:
             )
             
             logging.info(f"Efficiently restricted permissions for channel {channel.id} - removed staff role send_messages, added individual permission for {staff_member.id}")
-            return original_permissions
+            return str(original_permissions)  # Convert to string for storage
             
         except Exception as e:
             logging.error(f"Error restricting channel permissions: {e}")
             raise
 
-    async def restore_channel_permissions(self, channel, original_permissions):
+    async def restore_channel_permissions(self, channel, original_permissions_str):
         """Restore original channel permissions efficiently."""
         try:
+            # Parse the original permissions string back to dict
+            import ast
+            original_permissions = ast.literal_eval(original_permissions_str)
+            
             # Get current overwrites to identify the staff role and member to restore
             current_overwrites = channel.overwrites
             
@@ -120,6 +124,24 @@ class PermissionManager:
             
         except Exception as e:
             logging.error(f"Error restoring channel permissions: {e}")
+            raise
+
+    async def restore_permissions(self, channel, original_permissions):
+        """Wrapper method to maintain compatibility."""
+        return await self.restore_channel_permissions(channel, original_permissions)
+
+    async def add_officer_permissions(self, channel, officer_role):
+        """Add officer role permissions to channel."""
+        try:
+            await channel.set_permissions(
+                officer_role,
+                view_channel=True,
+                send_messages=True,
+                read_message_history=True
+            )
+            logging.info(f"Added officer permissions for role {officer_role.id} in channel {channel.id}")
+        except Exception as e:
+            logging.error(f"Error adding officer permissions: {e}")
             raise
 
     async def add_user_to_ticket(self, channel, user, permission_level='view'):
@@ -178,14 +200,10 @@ class PermissionManager:
                     add_reactions=False
                 )
             else:
-                # Restore send permissions (keep existing view permissions)
-                current_perms = channel.overwrites_for(everyone_role)
                 await channel.set_permissions(
                     everyone_role,
-                    view_channel=current_perms.view_channel,
-                    send_messages=True,
-                    read_message_history=current_perms.read_message_history,
-                    add_reactions=True
+                    send_messages=None,
+                    add_reactions=None
                 )
             
             logging.info(f"Set channel {channel.id} read-only: {read_only}")
@@ -193,23 +211,3 @@ class PermissionManager:
         except Exception as e:
             logging.error(f"Error setting channel read-only mode: {e}")
             raise
-
-    def can_manage_ticket(self, member, channel_id):
-        """Check if member can manage the specified ticket."""
-        # Get timeout info
-        timeout_info = self.bot.database.get_timeout_info(channel_id)
-        
-        if not timeout_info:
-            return False
-        
-        _, staff_id, _, _ = timeout_info
-        
-        # Check if user is the staff member who claimed the ticket
-        if member.id == staff_id:
-            return True
-        
-        # Check if user has administrator permissions
-        if member.guild_permissions.administrator:
-            return True
-        
-        return False
