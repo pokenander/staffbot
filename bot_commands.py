@@ -26,6 +26,55 @@ class TicketCommands(commands.Cog):
         
         return False
 
+@commands.command(name='lb', aliases=['leaderboard'])
+async def show_leaderboard(self, ctx, period: str = "total", page: int = 1):
+    """Show leaderboard. Usage: ?lb [daily/weekly/total] [page]"""
+    
+    try:
+        if period.lower() == "daily":
+            await self.bot.leaderboard_manager.send_daily_leaderboard(ctx.channel, page)
+        elif period.lower() == "weekly":
+            await self.bot.leaderboard_manager.send_weekly_leaderboard(ctx.channel, page)
+        else:
+            await self.bot.leaderboard_manager.send_total_leaderboard(ctx.channel, page)
+    except Exception as e:
+        logging.error(f"Error showing leaderboard: {e}")
+        await ctx.send("❌ An error occurred while fetching the leaderboard.")
+
+@commands.command(name='leaderboardchannel')
+@commands.has_permissions(administrator=True)
+async def set_leaderboard_channel(self, ctx, channel: discord.TextChannel = None):
+    """Set channel for automatic leaderboard posting. Usage: ?leaderboardchannel #channel"""
+    
+    if not channel:
+        channel = ctx.channel
+    
+    self.bot.database.set_guild_config(ctx.guild.id, leaderboard_channel_id=channel.id)
+    await ctx.send(f"✅ Leaderboard channel set to {channel.mention}")
+    logging.info(f"Leaderboard channel set to {channel.id} in guild {ctx.guild.id}")
+
+@commands.command(name='testtimeout')
+@commands.has_permissions(administrator=True)
+async def test_timeout(self, ctx, minutes: int = 1):
+    """Test timeout functionality. Usage: ?testtimeout [minutes]"""
+    
+    if not self._is_ticket_channel(ctx.channel):
+        await ctx.send("❌ This command can only be used in ticket channels.")
+        return
+    
+    # Check if there's an active timeout
+    timeout_info = self.bot.database.get_timeout_info(ctx.channel.id)
+    if not timeout_info:
+        await ctx.send("❌ This ticket is not currently claimed.")
+        return
+    
+    # Modify timeout for testing
+    import datetime
+    new_timeout = datetime.datetime.now() + datetime.timedelta(minutes=minutes)
+    
+    await ctx.send(f"⏰ Timeout set to {minutes} minute(s) for testing.")
+    logging.info(f"Test timeout set for {minutes} minutes in channel {ctx.channel.id}")
+
 @commands.command(name='readperms')
 @commands.has_permissions(administrator=True)
 async def set_staff_role(self, ctx, role: discord.Role = None, role_type: str = None):
