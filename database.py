@@ -122,19 +122,37 @@ class Database:
             conn.commit()
     
     def add_allowed_category(self, guild_id, category_id):
-    with self.conn:
-        self.conn.execute("INSERT OR IGNORE INTO allowed_categories (guild_id, category_id) VALUES (?, ?)", (guild_id, category_id))
+    with sqlite3.connect(self.db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS allowed_categories (
+                guild_id INTEGER,
+                category_id INTEGER,
+                UNIQUE(guild_id, category_id)
+            )
+        ''')
+        cursor.execute('''
+            INSERT OR IGNORE INTO allowed_categories (guild_id, category_id)
+            VALUES (?, ?)
+        ''', (guild_id, category_id))
+        conn.commit()
 
 def remove_allowed_category(self, guild_id, category_id):
-    with self.conn:
-        self.conn.execute("DELETE FROM allowed_categories WHERE guild_id = ? AND category_id = ?", (guild_id, category_id))
+    with sqlite3.connect(self.db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            DELETE FROM allowed_categories WHERE guild_id = ? AND category_id = ?
+        ''', (guild_id, category_id))
+        conn.commit()
 
 def get_allowed_categories(self, guild_id):
-    cur = self.conn.cursor()
-    cur.execute("SELECT category_id FROM allowed_categories WHERE guild_id = ?", (guild_id,))
-    return [row[0] for row in cur.fetchall()]
+    with sqlite3.connect(self.db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT category_id FROM allowed_categories WHERE guild_id = ?
+        ''', (guild_id,))
+        return [row[0] for row in cursor.fetchall()]
 
-    
     def set_leaderboard_channel(self, guild_id: int, channel_id: int):
         """Set the leaderboard channel for automatic updates."""
         with sqlite3.connect(self.db_path) as conn:
@@ -146,7 +164,7 @@ def get_allowed_categories(self, guild_id):
                 UPDATE guild_config SET leaderboard_channel_id = ? WHERE guild_id = ?
             ''', (channel_id, guild_id))
             conn.commit()
-    
+
     def get_guild_config(self, guild_id: int) -> Tuple[Optional[int], Optional[int], Optional[int], Optional[int]]:
         """Get guild configuration: staff_role_id, officer_role_id, allowed_category_id, leaderboard_channel_id."""
         with sqlite3.connect(self.db_path) as conn:
