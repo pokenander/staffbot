@@ -153,6 +153,7 @@ def get_allowed_categories(self, guild_id):
         ''', (guild_id,))
         return [row[0] for row in cursor.fetchall()]
 
+
     def set_leaderboard_channel(self, guild_id: int, channel_id: int):
         """Set the leaderboard channel for automatic updates."""
         with sqlite3.connect(self.db_path) as conn:
