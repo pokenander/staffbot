@@ -166,6 +166,34 @@ class Database:
             ''', (channel_id, guild_id))
             conn.commit()
 
+    def set_guild_config(self, guild_id: int, staff_role_id=None, officer_role_id=None, leaderboard_channel_id=None):
+    """Set guild configuration parameters."""
+    with sqlite3.connect(self.db_path) as conn:
+        cursor = conn.cursor()
+        
+        # Insert guild if it doesn't exist
+        cursor.execute('''
+            INSERT OR IGNORE INTO guild_config (guild_id) VALUES (?)
+        ''', (guild_id,))
+        
+        # Update the specified fields
+        if staff_role_id is not None:
+            cursor.execute('''
+                UPDATE guild_config SET staff_role_id = ? WHERE guild_id = ?
+            ''', (staff_role_id, guild_id))
+        
+        if officer_role_id is not None:
+            cursor.execute('''
+                UPDATE guild_config SET officer_role_id = ? WHERE guild_id = ?
+            ''', (officer_role_id, guild_id))
+        
+        if leaderboard_channel_id is not None:
+            cursor.execute('''
+                UPDATE guild_config SET leaderboard_channel_id = ? WHERE guild_id = ?
+            ''', (leaderboard_channel_id, guild_id))
+        
+        conn.commit()
+
     def get_guild_config(self, guild_id: int) -> Tuple[Optional[int], Optional[int], Optional[int], Optional[int]]:
         """Get guild configuration: staff_role_id, officer_role_id, allowed_category_id, leaderboard_channel_id."""
         with sqlite3.connect(self.db_path) as conn:
