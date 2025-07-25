@@ -26,6 +26,88 @@ class TicketCommands(commands.Cog):
         
         return False
 
+    @commands.command(name='readperms')
+    @commands.has_permissions(administrator=True)
+    async def set_staff_role(self, ctx, role_type: str = None, role: discord.Role = None):
+        """Set staff or officer role. Usage: ?readperms @role or ?readperms officer @role"""
+        
+        if not role_type or not role:
+            await ctx.send("❌ Please specify role type and role.\n**Usage:** `?readperms @role` or `?readperms officer @role`")
+            return
+            
+        if role_type.lower() == "officer":
+            # Set officer role
+            self.bot.database.set_guild_config(ctx.guild.id, officer_role_id=role.id)
+            await ctx.send(f"✅ Officer role set to **{role.name}**")
+            logging.info(f"Officer role set to {role.id} in guild {ctx.guild.id}")
+        else:
+            # First argument is the role (for backward compatibility)
+            if isinstance(role_type, str) and role_type.startswith('<@&'):
+                # Handle case where role is passed as first argument
+                role_id = int(role_type.strip('<@&>'))
+                role = ctx.guild.get_role(role_id)
+            else:
+                role = role_type if hasattr(role_type, 'id') else role
+                
+            self.bot.database.set_guild_config(ctx.guild.id, staff_role_id=role.id)
+            await ctx.send(f"✅ Staff role set to **{role.name}**")
+            logging.info(f"Staff role set to {role.id} in guild {ctx.guild.id}")
+
+    @commands.command(name='addcat')
+    @commands.has_permissions(administrator=True) 
+    async def add_category(self, ctx, category: discord.CategoryChannel = None):
+        """Add a category where ticket commands can be used. Usage: ?addcat #category"""
+        
+        if not category:
+            await ctx.send("❌ Please mention a category.\n**Usage:** `?addcat #category-name`")
+            return
+            
+        # Add category to allowed list
+        self.bot.database.add_allowed_category(ctx.guild.id, category.id)
+        await ctx.send(f"✅ Category **{category.name}** added to allowed ticket categories.")
+        logging.info(f"Category {category.id} added to guild {ctx.guild.id}")
+
+    @commands.command(name='removecat')
+    @commands.has_permissions(administrator=True)
+    async def remove_category(self, ctx, category: discord.CategoryChannel = None):
+        """Remove a category from allowed ticket categories. Usage: ?removecat #category"""
+        
+        if not category:
+            await ctx.send("❌ Please mention a category.\n**Usage:** `?removecat #category-name`")
+            return
+            
+        # Remove category from allowed list
+        self.bot.database.remove_allowed_category(ctx.guild.id, category.id)
+        await ctx.send(f"✅ Category **{category.name}** removed from allowed ticket categories.")
+        logging.info(f"Category {category.id} removed from guild {ctx.guild.id}")
+
+    @commands.command(name='help')
+    async def help_command(self, ctx):
+        """Show available commands."""
+        
+        embed = discord.Embed(title="🎫 Ticket Bot Commands", color=0x00ff00)
+        
+        # Admin commands
+        admin_commands = """
+        `?readperms @role` - Set staff role
+        `?readperms officer @role` - Set officer role  
+        `?addcat #category` - Add allowed ticket category
+        `?removecat #category` - Remove allowed category
+        """
+        embed.add_field(name="🔧 Admin Commands", value=admin_commands, inline=False)
+        
+        # Ticket commands
+        ticket_commands = """
+        `?claim @user` - Claim a ticket
+        `?unclaim` - Unclaim current ticket
+        `?reclaim @user` - Reclaim timed out ticket
+        `?ticketholder @user` - Set ticket holder
+        `?officer` - Invite officers to help
+        """
+        embed.add_field(name="🎫 Ticket Commands", value=ticket_commands, inline=False)
+        
+        await ctx.send(embed=embed)
+
     @commands.command(name='claim')
     async def claim_ticket(self, ctx, member: discord.Member = None):
         """Claim a ticket and restrict permissions. Usage: ?claim @user"""
