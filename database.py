@@ -254,6 +254,8 @@ class Database:
 
     def complete_claim(self, channel_id: int, timeout_occurred: bool = False, officer_used: bool = False):
         """FIX #2: Mark a claim as completed and award score - Fixed officer logic for point awarding."""
+    with sqlite3.connect(self.db_path) as conn:
+        cursor = conn.cursor()
             
             # Get the most recent claim for this channel
             cursor.execute('''
