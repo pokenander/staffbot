@@ -181,6 +181,9 @@ class BotCommands(commands.Cog):
             # Restore permissions
             await self.bot.permissions.restore_channel_permissions(ctx.channel, original_permissions)
 
+            # FIX #2: Complete the claim with proper officer_used parameter
+            self.bot.database.complete_claim(ctx.channel.id, timeout_occurred=False, officer_used=officer_used)
+
             # Complete the claim (successful completion)
             self.bot.database.complete_claim(ctx.channel.id, timeout_occurred=False)
 
@@ -327,6 +330,13 @@ class BotCommands(commands.Cog):
 
             # Mark officer as used
             self.bot.database.mark_officer_used(ctx.channel.id)
+
+            # FIX #3: Mention the officer role in the response
+            embed = discord.Embed(
+            title="✅ Officer Access Granted",
+            description=f"Officer role {officer_role.mention} can now access this ticket and help resolve it.",
+            color=discord.Color.purple()
+            )
 
             embed = discord.Embed(
                 title="✅ Officer Access Granted",
