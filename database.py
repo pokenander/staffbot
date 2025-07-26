@@ -241,10 +241,19 @@ class Database:
             ''', (guild_id, channel_id, user_id, datetime.now().isoformat()))
             conn.commit()
 
-    def complete_claim(self, channel_id: int, timeout_occurred: bool = False):
-        """Mark a claim as completed and award score if appropriate."""
+    def get_active_claim(self, channel_id: int):
+        """FIX #1: Get active claim for a channel to prevent duplicate claims."""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
+            cursor.execute('''
+                SELECT user_id, claimed_at FROM ticket_claims 
+                WHERE channel_id = ? AND completed = FALSE 
+                ORDER BY claimed_at DESC LIMIT 1
+            ''', (channel_id,))
+            return cursor.fetchone()
+
+    def complete_claim(self, channel_id: int, timeout_occurred: bool = False, officer_used: bool = False):
+        """FIX #2: Mark a claim as completed and award score - Fixed officer logic for point awarding."""
             
             # Get the most recent claim for this channel
             cursor.execute('''
@@ -263,6 +272,14 @@ class Database:
                     SET completed = TRUE, timeout_occurred = ?, score_awarded = TRUE
                     WHERE channel_id = ? AND user_id = ? AND completed = FALSE
                 ''', (timeout_occurred, channel_id, user_id))
+
+                # FIXED: Award score logic - Points awarded even if officer was used
+                # - Not already awarded
+                # - Not a timeout (unless it's a holder timeout where staff was active)
+                # - Points should be awarded regardless of officer_used status
+                if not score_awarded and not timeout_occurred:
+                    self.award_score(guild_id, user_id)
+                    logging.info(f"Point awarded to user {user_id} for completing ticket in channel {channel_id} (officer_used: {officer_used})")
                 
                 # Award score if not already awarded and not a timeout
                 if not score_awarded and not timeout_occurred:
