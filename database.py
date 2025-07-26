@@ -252,36 +252,32 @@ class Database:
             ''', (channel_id,))
             return cursor.fetchone()
 
-    def complete_claim(self, channel_id: int, timeout_occurred: bool = False, officer_used: bool = False):
-        """FIX #2: Mark a claim as completed and award score - Fixed officer logic for point awarding."""
-    with sqlite3.connect(self.db_path) as conn:
+   def complete_claim(self, channel_id: int, timeout_occurred: bool = False, officer_used: bool = False):
+    """FIX #2: Mark a claim as completed and award score - Fixed officer logic for point awarding."""
+    with sqlite3.connect(self.db_path) as conn:  # ← Now properly indented
         cursor = conn.cursor()
+        
+        # Get the most recent claim for this channel
+        cursor.execute('''
+            SELECT guild_id, user_id, score_awarded FROM ticket_claims 
+            WHERE channel_id = ? AND completed = FALSE 
+            ORDER BY claimed_at DESC LIMIT 1
+        ''', (channel_id,))
+        result = cursor.fetchone()
+        
+        if result:
+            guild_id, user_id, score_awarded = result
             
-            # Get the most recent claim for this channel
+            # Mark as completed
             cursor.execute('''
-                SELECT guild_id, user_id, score_awarded FROM ticket_claims 
-                WHERE channel_id = ? AND completed = FALSE 
-                ORDER BY claimed_at DESC LIMIT 1
-            ''', (channel_id,))
-            result = cursor.fetchone()
-            
-            if result:
-                guild_id, user_id, score_awarded = result
-                
-                # Mark as completed
-                cursor.execute('''
-                    UPDATE ticket_claims 
-                    SET completed = TRUE, timeout_occurred = ?, score_awarded = TRUE
-                    WHERE channel_id = ? AND user_id = ? AND completed = FALSE
-                ''', (timeout_occurred, channel_id, user_id))
-
-                # FIXED: Award score logic - Points awarded even if officer was used
-                # - Not already awarded
-                # - Not a timeout (unless it's a holder timeout where staff was active)
-                # - Points should be awarded regardless of officer_used status
-                if not score_awarded and not timeout_occurred:
-                    self.award_score(guild_id, user_id)
-                    logging.info(f"Point awarded to user {user_id} for completing ticket in channel {channel_id} (officer_used: {officer_used})")
+                UPDATE ticket_claims 
+                SET completed = TRUE, timeout_occurred = ?, score_awarded = TRUE
+                WHERE channel_id = ? AND user_id = ? AND completed = FALSE
+            ''', (timeout_occurred, channel_id, user_id))
+            # Award score logic
+            if not score_awarded and not timeout_occurred:
+                self.award_score(guild_id, user_id)
+                logging.info(f"Point awarded to user {user_id} for completing ticket in channel {channel_id} (officer_used: {officer_used})")
                 
                 # Award score if not already awarded and not a timeout
                 if not score_awarded and not timeout_occurred:
