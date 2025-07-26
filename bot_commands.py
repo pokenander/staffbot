@@ -98,6 +98,15 @@ class BotCommands(commands.Cog):
                     await ctx.send("❌ This command can only be used in allowed ticket categories.")
                     return
 
+            # FIX #1: CHECK FOR EXISTING ACTIVE CLAIM - Prevent duplicate claims
+            existing_claim = self.bot.database.get_active_claim(ctx.channel.id)
+            if existing_claim:
+                claimer_id = existing_claim[0]
+                claimer = ctx.guild.get_member(claimer_id)
+                claimer_mention = claimer.mention if claimer else f"<@{claimer_id}>"
+                await ctx.send(f"❌ This ticket is already claimed by {claimer_mention}. Use `?unclaim` to release it first.")
+                return
+
             # Get staff role
             staff_role = ctx.guild.get_role(staff_role_id)
             if not staff_role:
