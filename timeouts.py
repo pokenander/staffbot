@@ -109,9 +109,9 @@ class TimeoutManager:
             
             # Restore original permissions
             await self.bot.permission_manager.restore_permissions(channel, original_permissions)
-            
-            # Mark claim as completed with timeout (no score changes)
-            self.bot.database.complete_claim(channel_id, timeout_occurred=True)
+
+            # FIX #2: Mark claim as completed with timeout - Fixed to pass officer_used parameter
+            self.bot.database.complete_claim(channel_id, timeout_occurred=True, officer_used=officer_used)
             
             # Remove timeout tracking
             self.bot.database.remove_timeout(channel_id)
@@ -138,8 +138,8 @@ class TimeoutManager:
             # Restore original permissions so others can help
             await self.bot.permission_manager.restore_permissions(channel, original_permissions)
             
-            # Award point to claimer since they were active and it's not their fault
-            self.bot.database.complete_claim(channel_id, timeout_occurred=False)  # Award point
+            # FIX #2: Award point to claimer since they were active - Fixed to pass officer_used parameter
+            self.bot.database.complete_claim(channel_id, timeout_occurred=False, officer_used=officer_used)  # Award point
             
             # Remove timeout tracking
             self.bot.database.remove_timeout(channel_id)
