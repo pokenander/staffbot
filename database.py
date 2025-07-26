@@ -3,7 +3,6 @@ import asyncio
 import logging
 from datetime import datetime, timedelta
 from typing import List, Tuple, Optional
-
 class Database:
     def __init__(self, db_path: str):
         self.db_path = db_path
@@ -129,7 +128,6 @@ class Database:
                 UPDATE guild_config SET officer_role_id = ? WHERE guild_id = ?
             ''', (role_id, guild_id))
             conn.commit()
-
     def set_allowed_category(self, guild_id: int, category_id: int):
         """Set the main allowed category for a guild (single category)."""
         with sqlite3.connect(self.db_path) as conn:
@@ -151,7 +149,6 @@ class Database:
                 VALUES (?, ?)
             ''', (guild_id, category_id))
             conn.commit()
-
     def remove_allowed_category(self, guild_id, category_id):
         """Remove a category from allowed categories list."""
         with sqlite3.connect(self.db_path) as conn:
@@ -160,7 +157,6 @@ class Database:
                 DELETE FROM allowed_categories WHERE guild_id = ? AND category_id = ?
             ''', (guild_id, category_id))
             conn.commit()
-
     def get_allowed_categories(self, guild_id):
         """Get all allowed categories for a guild."""
         with sqlite3.connect(self.db_path) as conn:
@@ -169,7 +165,6 @@ class Database:
                 SELECT category_id FROM allowed_categories WHERE guild_id = ?
             ''', (guild_id,))
             return [row[0] for row in cursor.fetchall()]
-
     def set_leaderboard_channel(self, guild_id: int, channel_id: int):
         """Set the leaderboard channel for automatic updates."""
         with sqlite3.connect(self.db_path) as conn:
@@ -181,7 +176,6 @@ class Database:
                 UPDATE guild_config SET leaderboard_channel_id = ? WHERE guild_id = ?
             ''', (channel_id, guild_id))
             conn.commit()
-
     def get_all_leaderboard_channels(self):
         """Get all leaderboard channels across all guilds."""
         with sqlite3.connect(self.db_path) as conn:
@@ -191,7 +185,6 @@ class Database:
                 WHERE leaderboard_channel_id IS NOT NULL
             ''')
             return cursor.fetchall()
-
     def set_guild_config(self, guild_id: int, staff_role_id=None, officer_role_id=None, leaderboard_channel_id=None):
         """Set guild configuration parameters."""
         with sqlite3.connect(self.db_path) as conn:
@@ -219,7 +212,6 @@ class Database:
                 ''', (leaderboard_channel_id, guild_id))
             
             conn.commit()
-
     def get_guild_config(self, guild_id: int) -> Tuple[Optional[int], Optional[int], Optional[int], Optional[int]]:
         """Get guild configuration: staff_role_id, officer_role_id, allowed_category_id, leaderboard_channel_id."""
         with sqlite3.connect(self.db_path) as conn:
@@ -230,7 +222,6 @@ class Database:
             ''', (guild_id,))
             result = cursor.fetchone()
             return result if result else (None, None, None, None)
-
     def create_claim(self, guild_id: int, channel_id: int, user_id: int):
         """Create a new ticket claim record."""
         with sqlite3.connect(self.db_path) as conn:
@@ -240,7 +231,6 @@ class Database:
                 VALUES (?, ?, ?, ?)
             ''', (guild_id, channel_id, user_id, datetime.now().isoformat()))
             conn.commit()
-
     def get_active_claim(self, channel_id: int):
         """FIX #1: Get active claim for a channel to prevent duplicate claims."""
         with sqlite3.connect(self.db_path) as conn:
@@ -251,40 +241,34 @@ class Database:
                 ORDER BY claimed_at DESC LIMIT 1
             ''', (channel_id,))
             return cursor.fetchone()
-
-   def complete_claim(self, channel_id: int, timeout_occurred: bool = False, officer_used: bool = False):
-    """FIX #2: Mark a claim as completed and award score - Fixed officer logic for point awarding."""
-    with sqlite3.connect(self.db_path) as conn:  # ← Now properly indented
-        cursor = conn.cursor()
-        
-        # Get the most recent claim for this channel
-        cursor.execute('''
-            SELECT guild_id, user_id, score_awarded FROM ticket_claims 
-            WHERE channel_id = ? AND completed = FALSE 
-            ORDER BY claimed_at DESC LIMIT 1
-        ''', (channel_id,))
-        result = cursor.fetchone()
-        
-        if result:
-            guild_id, user_id, score_awarded = result
+    def complete_claim(self, channel_id: int, timeout_occurred: bool = False, officer_used: bool = False):
+        """FIX #2: Mark a claim as completed and award score - Fixed officer logic for point awarding."""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
             
-            # Mark as completed
+            # Get the most recent claim for this channel
             cursor.execute('''
-                UPDATE ticket_claims 
-                SET completed = TRUE, timeout_occurred = ?, score_awarded = TRUE
-                WHERE channel_id = ? AND user_id = ? AND completed = FALSE
-            ''', (timeout_occurred, channel_id, user_id))
-            # Award score logic
-            if not score_awarded and not timeout_occurred:
-                self.award_score(guild_id, user_id)
-                logging.info(f"Point awarded to user {user_id} for completing ticket in channel {channel_id} (officer_used: {officer_used})")
+                SELECT guild_id, user_id, score_awarded FROM ticket_claims 
+                WHERE channel_id = ? AND completed = FALSE 
+                ORDER BY claimed_at DESC LIMIT 1
+            ''', (channel_id,))
+            result = cursor.fetchone()
+            
+            if result:
+                guild_id, user_id, score_awarded = result
                 
+                # Mark as completed
+                cursor.execute('''
+                    UPDATE ticket_claims 
+                    SET completed = TRUE, timeout_occurred = ?, score_awarded = TRUE
+                    WHERE channel_id = ? AND user_id = ? AND completed = FALSE
+                ''', (timeout_occurred, channel_id, user_id))
                 # Award score if not already awarded and not a timeout
                 if not score_awarded and not timeout_occurred:
                     self.award_score(guild_id, user_id)
+                    logging.info(f"Point awarded to user {user_id} for completing ticket in channel {channel_id} (officer_used: {officer_used})")
                 
                 conn.commit()
-
     def award_score(self, guild_id: int, user_id: int):
         """Award a point to a user."""
         with sqlite3.connect(self.db_path) as conn:
@@ -304,7 +288,6 @@ class Database:
             ''', (guild_id, user_id))
             
             conn.commit()
-
     def get_leaderboard(self, guild_id: int, period: str = "total"):
         """Get leaderboard data for a specific period."""
         with sqlite3.connect(self.db_path) as conn:
@@ -330,7 +313,6 @@ class Database:
                 ''', (guild_id,))
             
             return cursor.fetchall()
-
     def reset_daily_leaderboard(self):
         """Reset all daily leaderboard scores."""
         with sqlite3.connect(self.db_path) as conn:
@@ -339,7 +321,6 @@ class Database:
                 UPDATE leaderboard SET daily_claims = 0, last_daily_reset = CURRENT_DATE
             ''')
             conn.commit()
-
     def reset_weekly_leaderboard(self):
         """Reset all weekly leaderboard scores."""
         with sqlite3.connect(self.db_path) as conn:
@@ -348,7 +329,6 @@ class Database:
                 UPDATE leaderboard SET weekly_claims = 0, last_weekly_reset = CURRENT_DATE
             ''')
             conn.commit()
-
     def set_ticket_holder(self, channel_id: int, user_id: int, set_by: int):
         """Set or update the ticket holder for a channel."""
         with sqlite3.connect(self.db_path) as conn:
@@ -358,7 +338,6 @@ class Database:
                 VALUES (?, ?, ?, ?)
             ''', (channel_id, user_id, set_by, datetime.now().isoformat()))
             conn.commit()
-
     def get_ticket_holder(self, channel_id: int) -> Optional[int]:
         """Get the ticket holder for a channel."""
         with sqlite3.connect(self.db_path) as conn:
@@ -368,7 +347,6 @@ class Database:
             ''', (channel_id,))
             result = cursor.fetchone()
             return result[0] if result else None
-
     def save_timeout(self, channel_id: int, claimer_id: int, ticket_holder_id: int, original_permissions: str):
         """Save timeout information for a channel."""
         with sqlite3.connect(self.db_path) as conn:
@@ -380,7 +358,6 @@ class Database:
                 VALUES (?, ?, ?, ?, ?, ?, ?)
             ''', (channel_id, claimer_id, ticket_holder_id, current_time, current_time, current_time, original_permissions))
             conn.commit()
-
     def get_timeout_info(self, channel_id: int):
         """Get timeout information for a channel."""
         with sqlite3.connect(self.db_path) as conn:
@@ -391,21 +368,18 @@ class Database:
                 FROM active_timeouts WHERE channel_id = ?
             ''', (channel_id,))
             return cursor.fetchone()
-
     def get_all_active_timeouts(self):
         """Get all active timeouts."""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             cursor.execute('SELECT channel_id FROM active_timeouts')
             return cursor.fetchall()
-
     def remove_timeout(self, channel_id: int):
         """Remove timeout information for a channel."""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             cursor.execute('DELETE FROM active_timeouts WHERE channel_id = ?', (channel_id,))
             conn.commit()
-
     def update_last_message(self, channel_id: int, user_id: int):
         """Update last message time for timeout tracking."""
         with sqlite3.connect(self.db_path) as conn:
@@ -431,7 +405,6 @@ class Database:
                     ''', (current_time, channel_id))
                 
                 conn.commit()
-
     def mark_officer_used(self, channel_id: int):
         """Mark that officer command was used for this ticket."""
         with sqlite3.connect(self.db_path) as conn:
