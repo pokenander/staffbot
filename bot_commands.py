@@ -3,6 +3,8 @@ from discord.ext import commands
 import logging
 from datetime import datetime, timedelta
 import asyncio
+import sqlite3
+import time
 
 class BotCommands(commands.Cog):
     def __init__(self, bot):
@@ -304,82 +306,94 @@ class BotCommands(commands.Cog):
     @commands.command(name='officer')
     async def officer_help(self, ctx):
         """Allow officer role to access the ticket temporarily."""
-        try:
-            # Get guild configuration
-            staff_role_id, officer_role_id, allowed_category_id, leaderboard_channel_id = self.bot.database.get_guild_config(ctx.guild.id)
+        max_retries = 5
+        retry_delay = 0.5  # Start with 0.5 seconds
+        
+        for attempt in range(max_retries):
+            try:
+                # Get guild configuration
+                staff_role_id, officer_role_id, allowed_category_id, leaderboard_channel_id = self.bot.database.get_guild_config(ctx.guild.id)
 
-            if not officer_role_id:
-                await ctx.send("❌ Officer role not configured. Use `?officerrole @role` to set it.")
+                if not officer_role_id:
+                    await ctx.send("❌ Officer role not configured. Use `?officerrole @role` to set it.")
+                    return
+
+                # Check if user has staff role
+                if not self.bot.permissions.has_staff_role(ctx.author, staff_role_id):
+                    await ctx.send("❌ You don't have permission to use this command.")
+                    return
+
+                # Get timeout info first
+                timeout_info = self.bot.database.get_timeout_info(ctx.channel.id)
+                if not timeout_info:
+                    await ctx.send("❌ No active claim found for this channel.")
+                    return
+
+                claimer_id, ticket_holder_id, claim_time, last_staff_msg, last_holder_msg, original_permissions, officer_used = timeout_info
+
+                # Get officer role
+                officer_role = ctx.guild.get_role(officer_role_id)
+                if not officer_role:
+                    await ctx.send("❌ Officer role not found.")
+                    return
+
+                # Try database operations with retry logic
+                try:
+                    # Mark officer as used FIRST
+                    self.bot.database.mark_officer_used(ctx.channel.id)
+                    
+                    # Add officer permissions
+                    await self.bot.permissions.add_officer_permissions(ctx.channel, officer_role)
+
+                    # Restore permissions
+                    await self.bot.permissions.restore_channel_permissions(ctx.channel, original_permissions)
+
+                    # Complete the claim (officer forced completion)
+                    self.bot.database.complete_claim(ctx.channel.id, timeout_occurred=True, officer_used=True)
+
+                    # Remove timeout info
+                    self.bot.database.remove_timeout(ctx.channel.id)
+
+                    # If we get here, all operations succeeded
+                    break
+
+                except sqlite3.OperationalError as db_error:
+                    if "database is locked" in str(db_error).lower() and attempt < max_retries - 1:
+                        logging.warning(f"Database locked on attempt {attempt + 1}, retrying in {retry_delay} seconds...")
+                        await asyncio.sleep(retry_delay)
+                        retry_delay *= 2  # Exponential backoff
+                        continue
+                    else:
+                        raise db_error
+
+                # Get claimer for notification
+                claimer = ctx.guild.get_member(claimer_id)
+                claimer_mention = claimer.mention if claimer else f"<@{claimer_id}>"
+
+                # Send confirmation
+                embed = discord.Embed(
+                    title="✅ Officer Intervention Complete",
+                    description=f"Officer {ctx.author.mention} has completed this ticket.\n**Original Claimer:** {claimer_mention}",
+                    color=discord.Color.purple()
+                )
+                embed.add_field(
+                    name="✅ Actions Taken",
+                    value="• Officer permissions granted\n• Permissions restored\n• Claim completed\n• Points awarded to original claimer",
+                    inline=False
+                )
+                await ctx.send(embed=embed)
+
+                logging.info(f"Officer {ctx.author.id} completed ticket for claimer {claimer_id} in channel {ctx.channel.id}")
                 return
 
-            # Check if user has staff role
-            if not self.bot.permissions.has_staff_role(ctx.author, staff_role_id):
-                await ctx.send("❌ You don't have permission to use this command.")
-                return
-
-            # Get timeout info first
-            timeout_info = self.bot.database.get_timeout_info(ctx.channel.id)
-            if not timeout_info:
-                await ctx.send("❌ No active claim found for this channel.")
-                return
-
-            claimer_id, ticket_holder_id, claim_time, last_staff_msg, last_holder_msg, original_permissions, officer_used = timeout_info
-
-            # Get officer role
-            officer_role = ctx.guild.get_role(officer_role_id)
-            if not officer_role:
-                await ctx.send("❌ Officer role not found.")
-                return
-
-            # Add a small delay to prevent database locking
-            await asyncio.sleep(0.1)
-
-            # Mark officer as used FIRST
-            self.bot.database.mark_officer_used(ctx.channel.id)
-            
-            # Add another small delay
-            await asyncio.sleep(0.1)
-
-            # Add officer permissions
-            await self.bot.permissions.add_officer_permissions(ctx.channel, officer_role)
-
-            # Restore permissions
-            await self.bot.permissions.restore_channel_permissions(ctx.channel, original_permissions)
-
-            # Add delay before database operations
-            await asyncio.sleep(0.1)
-
-            # Complete the claim (officer forced completion) - FIX #1: Changed officer_used=False to officer_used=True
-            self.bot.database.complete_claim(ctx.channel.id, timeout_occurred=True, officer_used=True)
-
-            # Add delay before removing timeout
-            await asyncio.sleep(0.1)
-
-            # Remove timeout info
-            self.bot.database.remove_timeout(ctx.channel.id)
-
-            # Get claimer for notification
-            claimer = ctx.guild.get_member(claimer_id)
-            claimer_mention = claimer.mention if claimer else f"<@{claimer_id}>"
-
-            # Send confirmation
-            embed = discord.Embed(
-                title="✅ Officer Access Granted",
-                description=f"Officer {ctx.author.mention} has completed this ticket.\n**Original Claimer:** {claimer_mention}",
-                color=discord.Color.purple()
-            )
-            embed.add_field(
-                name="✅ Actions Taken",
-                value="• Officer permissions granted\n• Permissions restored\n• Claim completed\n• Points awarded to original claimer",
-                inline=False
-            )
-            await ctx.send(embed=embed)
-
-            logging.info(f"Officer {ctx.author.id} completed ticket for claimer {claimer_id} in channel {ctx.channel.id}")
-
-        except Exception as e:
-            logging.error(f"Error in officer command: {e}")
-            await ctx.send(f"❌ An error occurred while processing officer help: {str(e)}")
+            except Exception as e:
+                if attempt == max_retries - 1:  # Last attempt
+                    logging.error(f"Error in officer command after {max_retries} attempts: {e}")
+                    await ctx.send(f"❌ An error occurred while processing officer help after multiple attempts: {str(e)}")
+                else:
+                    logging.warning(f"Error in officer command attempt {attempt + 1}: {e}")
+                    await asyncio.sleep(retry_delay)
+                    retry_delay *= 2
 
     @commands.command(name='lb', aliases=['leaderboard'])
     async def show_leaderboard(self, ctx, period: str = "total", page: int = 1):
