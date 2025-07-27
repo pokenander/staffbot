@@ -309,15 +309,41 @@ def complete_claim(self, channel_id: int, timeout_occurred: bool = False, office
                 
                 conn.commit()
 
-    def award_score(self, guild_id: int, user_id: int):
-        """Award a point to a user."""
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            
-            # Create or update leaderboard entry
-            cursor.execute('''
-                INSERT OR IGNORE INTO leaderboard (guild_id, user_id) VALUES (?, ?)
-            ''', (guild_id, user_id))
+def award_score(self, guild_id: int, user_id: int):
+    """Award a point to a user."""
+    with sqlite3.connect(self.db_path) as conn:
+        cursor = conn.cursor()
+        
+        logging.info(f"=== AWARD_SCORE DEBUG ===")
+        logging.info(f"Awarding score to user {user_id} in guild {guild_id}")
+        
+        # Create or update leaderboard entry
+        cursor.execute('''
+            INSERT OR IGNORE INTO leaderboard (guild_id, user_id) VALUES (?, ?)
+        ''', (guild_id, user_id))
+        
+        logging.info(f"Insert/ignore leaderboard entry. Rows affected: {cursor.rowcount}")
+        
+        cursor.execute('''
+            UPDATE leaderboard 
+            SET daily_claims = daily_claims + 1,
+                weekly_claims = weekly_claims + 1,
+                total_claims = total_claims + 1
+            WHERE guild_id = ? AND user_id = ?
+        ''', (guild_id, user_id))
+        
+        logging.info(f"Updated leaderboard scores. Rows affected: {cursor.rowcount}")
+        
+        conn.commit()
+        
+        # Verify the update worked
+        cursor.execute('''
+            SELECT daily_claims, weekly_claims, total_claims FROM leaderboard 
+            WHERE guild_id = ? AND user_id = ?
+        ''', (guild_id, user_id))
+        result = cursor.fetchone()
+        logging.info(f"Current scores for user {user_id}: {result}")
+        logging.info(f"=== END AWARD_SCORE DEBUG ===")
             
             cursor.execute('''
                 UPDATE leaderboard 
