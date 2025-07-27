@@ -181,7 +181,7 @@ class BotCommands(commands.Cog):
             # Restore permissions
             await self.bot.permissions.restore_channel_permissions(ctx.channel, original_permissions)
 
-            # FIXED: Complete the claim with proper officer_used parameter (removed duplicate call)
+            # FIXED: Complete the claim with proper officer_used parameter (no points awarded here)
             self.bot.database.complete_claim(ctx.channel.id, timeout_occurred=False, officer_used=officer_used)
 
             # Remove timeout info
@@ -302,7 +302,7 @@ class BotCommands(commands.Cog):
 
     @commands.command(name='officer')
     async def officer_help(self, ctx):
-        """Allow officer role to access the ticket temporarily."""
+        """Allow officer role to access the ticket temporarily and award points based on responsiveness."""
         try:
             # Get guild configuration
             staff_role_id, officer_role_id, allowed_category_id, leaderboard_channel_id = self.bot.database.get_guild_config(ctx.guild.id)
@@ -327,12 +327,30 @@ class BotCommands(commands.Cog):
 
             # Mark officer as used
             self.bot.database.mark_officer_used(ctx.channel.id)
+            
+            # NEW: Analyze conversation and award points based on responsiveness
+            points_awarded = self.bot.database.analyze_conversation_and_award_points(ctx.channel.id)
 
+            # Send response
             embed = discord.Embed(
                 title="✅ Officer Access Granted",
                 description=f"Officer role {officer_role.mention} can now access this ticket and help resolve it.",
                 color=discord.Color.purple()
             )
+            
+            if points_awarded:
+                embed.add_field(
+                    name="🏆 Points Awarded",
+                    value="The ticket claimer has been awarded a point for being responsive!",
+                    inline=False
+                )
+            else:
+                embed.add_field(
+                    name="ℹ️ No Points Awarded", 
+                    value="No points awarded - claimer was not sufficiently responsive.",
+                    inline=False
+                )
+                
             await ctx.send(embed=embed)
 
             logging.info(f"Officer access granted by {ctx.author.id} in channel {ctx.channel.id}")
