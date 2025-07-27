@@ -535,3 +535,6 @@ class BotCommands(commands.Cog):
         else:
             logging.error(f"Admin command error: {error}")
             await ctx.send("❌ An error occurred while executing the command.")
+
+async def setup(bot):
+    await bot.add_cog(BotCommands(bot))
