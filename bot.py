@@ -47,7 +47,7 @@ class TicketBot(commands.Bot):
         self.database = Database(DATABASE_PATH)
         self.permissions = PermissionManager(self)  # Changed from permission_manager
         self.timeout_manager = TimeoutManager(self)
-        self.leaderboard = LeaderboardManager(self)  # Changed from leaderboard_manager
+        self.leaderboard = Leaderboard(self)  # Changed from leaderboard_manager
         
         # Initialize scheduler
         self.scheduler = AsyncIOScheduler(timezone=pytz.timezone(TIMEZONE))
