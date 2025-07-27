@@ -3,6 +3,7 @@ import asyncio
 import logging
 from datetime import datetime, timedelta
 from typing import List, Tuple, Optional
+import time
 
 class Database:
     def __init__(self, db_path: str):
@@ -253,63 +254,148 @@ class Database:
             return cursor.fetchone()
 
     def complete_claim(self, channel_id: int, timeout_occurred: bool = False, officer_used: bool = False):
-        """Mark a claim as completed and award score - FIXED officer logic for point awarding."""
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            
-            # Debug logging
-            logging.info(f"=== COMPLETE_CLAIM DEBUG ===")
-            logging.info(f"Channel ID: {channel_id}")
-            logging.info(f"Timeout occurred: {timeout_occurred}")
-            logging.info(f"Officer used: {officer_used}")
-            
-            # Get the most recent claim for this channel
-            cursor.execute('''
-                SELECT guild_id, user_id, score_awarded FROM ticket_claims 
-                WHERE channel_id = ? AND completed = FALSE 
-                ORDER BY claimed_at DESC LIMIT 1
-            ''', (channel_id,))
-            result = cursor.fetchone()
-            
-            logging.info(f"Query result: {result}")
-            
-            if result:
-                guild_id, user_id, score_awarded = result
-                
-                logging.info(f"Guild ID: {guild_id}")
-                logging.info(f"User ID: {user_id}")
-                logging.info(f"Score already awarded: {score_awarded}")
-                
-                # Mark as completed
-                cursor.execute('''
-                    UPDATE ticket_claims 
-                    SET completed = TRUE, timeout_occurred = ?, score_awarded = TRUE
-                    WHERE channel_id = ? AND user_id = ? AND completed = FALSE
-                ''', (timeout_occurred, channel_id, user_id))
+        """Mark a claim as completed - FIXED: No points awarded here, only via officer command."""
+        max_retries = 3
+        
+        for attempt in range(max_retries):
+            try:
+                with sqlite3.connect(self.db_path, timeout=30.0) as conn:
+                    cursor = conn.cursor()
+                    
+                    # Debug logging
+                    logging.info(f"=== COMPLETE_CLAIM DEBUG ===")
+                    logging.info(f"Channel ID: {channel_id}")
+                    logging.info(f"Timeout occurred: {timeout_occurred}")
+                    logging.info(f"Officer used: {officer_used}")
+                    
+                    # Get the most recent claim for this channel
+                    cursor.execute('''
+                        SELECT guild_id, user_id, score_awarded FROM ticket_claims 
+                        WHERE channel_id = ? AND completed = FALSE 
+                        ORDER BY claimed_at DESC LIMIT 1
+                    ''', (channel_id,))
+                    result = cursor.fetchone()
+                    
+                    logging.info(f"Query result: {result}")
+                    
+                    if result:
+                        guild_id, user_id, score_awarded = result
+                        
+                        logging.info(f"Guild ID: {guild_id}")
+                        logging.info(f"User ID: {user_id}")
+                        logging.info(f"Score already awarded: {score_awarded}")
+                        
+                        # Mark as completed
+                        cursor.execute('''
+                            UPDATE ticket_claims 
+                            SET completed = TRUE, timeout_occurred = ?, score_awarded = TRUE
+                            WHERE channel_id = ? AND user_id = ? AND completed = FALSE
+                        ''', (timeout_occurred, channel_id, user_id))
 
-                logging.info(f"Claim marked as completed. Rows affected: {cursor.rowcount}")
+                        logging.info(f"Claim marked as completed. Rows affected: {cursor.rowcount}")
 
-                # FIXED: Award points for any successful completion (not timed out)
-                if not score_awarded and not timeout_occurred:
-                    logging.info(f"Attempting to award score - score_awarded: {score_awarded}, timeout_occurred: {timeout_occurred}")
-                    self.award_score(guild_id, user_id)
-                    if officer_used:
-                        logging.info(f"Point awarded to user {user_id} for officer-assisted ticket completion in channel {channel_id}")
+                        # FIXED: Don't award points on unclaim - points should only be awarded on officer command
+                        logging.info(f"Unclaim completed - no points awarded (points awarded via officer command)")
+                        
+                        conn.commit()
+                        logging.info(f"Database changes committed")
+                        break
                     else:
-                        logging.info(f"Point awarded to user {user_id} for normal ticket completion in channel {channel_id}")
+                        logging.warning(f"No active claim found for channel {channel_id}")
+                        break
+                        
+            except sqlite3.OperationalError as e:
+                if "database is locked" in str(e) and attempt < max_retries - 1:
+                    logging.warning(f"Database locked, retrying in {attempt + 1} seconds...")
+                    time.sleep(attempt + 1)
+                    continue
                 else:
-                    logging.info(f"NOT awarding score - score_awarded: {score_awarded}, timeout_occurred: {timeout_occurred}")
-                
-                conn.commit()
-                logging.info(f"Database changes committed")
-            else:
-                logging.warning(f"No active claim found for channel {channel_id}")
+                    logging.error(f"Database error after {attempt + 1} attempts: {e}")
+                    raise
             
             logging.info(f"=== END COMPLETE_CLAIM DEBUG ===")
 
+    def analyze_conversation_and_award_points(self, channel_id: int):
+        """Analyze conversation history and award points based on responsiveness."""
+        with sqlite3.connect(self.db_path, timeout=30.0) as conn:
+            cursor = conn.cursor()
+            
+            # Get timeout info
+            cursor.execute('''
+                SELECT claimer_id, ticket_holder_id, claim_time, last_staff_message, last_holder_message
+                FROM active_timeouts WHERE channel_id = ?
+            ''', (channel_id,))
+            
+            timeout_info = cursor.fetchone()
+            if not timeout_info:
+                logging.warning(f"No timeout info found for channel {channel_id}")
+                return False
+                
+            claimer_id, ticket_holder_id, claim_time, last_staff_msg, last_holder_msg = timeout_info
+            
+            # Parse timestamps
+            try:
+                claim_time_dt = datetime.fromisoformat(claim_time)
+                last_staff_dt = datetime.fromisoformat(last_staff_msg)
+                last_holder_dt = datetime.fromisoformat(last_holder_msg)
+                current_time = datetime.now()
+                
+                # Calculate time differences
+                time_since_staff_msg = (current_time - last_staff_dt).total_seconds() / 60  # minutes
+                time_since_holder_msg = (current_time - last_holder_dt).total_seconds() / 60  # minutes
+                
+                logging.info(f"=== CONVERSATION ANALYSIS ===")
+                logging.info(f"Time since last staff message: {time_since_staff_msg:.1f} minutes")
+                logging.info(f"Time since last holder message: {time_since_holder_msg:.1f} minutes")
+                
+                # Award points based on your rules:
+                # 1. Staff responded within 15 min, holder didn't = AWARD
+                # 2. Staff responded within 15 min, holder also did = AWARD  
+                # 3. Staff didn't respond within 15 min, holder did = NO AWARD
+                
+                should_award = False
+                reason = ""
+                
+                if time_since_staff_msg <= 15:
+                    # Staff was responsive
+                    should_award = True
+                    if time_since_holder_msg <= 15:
+                        reason = "Both staff and holder were responsive - staff gets point"
+                    else:
+                        reason = "Staff was responsive, holder was not - staff gets point"
+                else:
+                    # Staff was not responsive
+                    should_award = False
+                    reason = "Staff was not responsive within 15 minutes - no point awarded"
+                
+                logging.info(f"Decision: {reason}")
+                logging.info(f"Should award points: {should_award}")
+                
+                if should_award:
+                    # Get guild_id for the claimer
+                    cursor.execute('''
+                        SELECT guild_id FROM ticket_claims 
+                        WHERE channel_id = ? AND user_id = ? AND completed = FALSE
+                        ORDER BY claimed_at DESC LIMIT 1
+                    ''', (channel_id, claimer_id))
+                    
+                    guild_result = cursor.fetchone()
+                    if guild_result:
+                        guild_id = guild_result[0]
+                        self.award_score(guild_id, claimer_id)
+                        logging.info(f"Points awarded to claimer {claimer_id} via officer command")
+                        return True
+                    
+                logging.info(f"=== END CONVERSATION ANALYSIS ===")
+                return should_award
+                
+            except Exception as e:
+                logging.error(f"Error analyzing conversation: {e}")
+                return False
+
     def award_score(self, guild_id: int, user_id: int):
         """Award a point to a user."""
-        with sqlite3.connect(self.db_path) as conn:
+        with sqlite3.connect(self.db_path, timeout=30.0) as conn:
             cursor = conn.cursor()
             
             logging.info(f"=== AWARD_SCORE DEBUG ===")
