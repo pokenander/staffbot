@@ -49,6 +49,7 @@ class BotCommands(commands.Cog):
             "?readperms @role - Set staff role\n"
             "?officerrole @role - Set officer role\n"
             "?category #category - Set allowed category\n"
+            "?addcategory #category - Add additional allowed category\n"
             "?leaderboardchannel #channel - Set leaderboard channel\n"
             "?test <channel_id> - Test timeout (admins only)"
         )
@@ -316,45 +317,69 @@ class BotCommands(commands.Cog):
                 await ctx.send("❌ You don't have permission to use this command.")
                 return
 
+            # Get timeout info first
+            timeout_info = self.bot.database.get_timeout_info(ctx.channel.id)
+            if not timeout_info:
+                await ctx.send("❌ No active claim found for this channel.")
+                return
+
+            claimer_id, ticket_holder_id, claim_time, last_staff_msg, last_holder_msg, original_permissions, officer_used = timeout_info
+
             # Get officer role
             officer_role = ctx.guild.get_role(officer_role_id)
             if not officer_role:
                 await ctx.send("❌ Officer role not found.")
                 return
 
+            # Add a small delay to prevent database locking
+            await asyncio.sleep(0.1)
+
+            # Mark officer as used FIRST
+            self.bot.database.mark_officer_used(ctx.channel.id)
+            
+            # Add another small delay
+            await asyncio.sleep(0.1)
+
             # Add officer permissions
             await self.bot.permissions.add_officer_permissions(ctx.channel, officer_role)
 
-            # Mark officer as used
-            self.bot.database.mark_officer_used(ctx.channel.id)
+            # Restore permissions
+            await self.bot.permissions.restore_channel_permissions(ctx.channel, original_permissions)
 
-            # FIX #3: Mention the officer role in the response
+            # Add delay before database operations
+            await asyncio.sleep(0.1)
+
+            # Complete the claim (officer forced completion) - FIX #1: Changed officer_used=False to officer_used=True
+            self.bot.database.complete_claim(ctx.channel.id, timeout_occurred=True, officer_used=True)
+
+            # Add delay before removing timeout
+            await asyncio.sleep(0.1)
+
+            # Remove timeout info
+            self.bot.database.remove_timeout(ctx.channel.id)
+
+            # Get claimer for notification
+            claimer = ctx.guild.get_member(claimer_id)
+            claimer_mention = claimer.mention if claimer else f"<@{claimer_id}>"
+
+            # Send confirmation
             embed = discord.Embed(
                 title="✅ Officer Access Granted",
-                description=f"Officer role {officer_role.mention} can now access this ticket and help resolve it.",
+                description=f"Officer {ctx.author.mention} has completed this ticket.\n**Original Claimer:** {claimer_mention}",
                 color=discord.Color.purple()
+            )
+            embed.add_field(
+                name="✅ Actions Taken",
+                value="• Officer permissions granted\n• Permissions restored\n• Claim completed\n• Points awarded to original claimer",
+                inline=False
             )
             await ctx.send(embed=embed)
 
-            # Get timeout info
-            timeout_info = self.bot.database.get_timeout_info(ctx.channel.id)
-            if timeout_info:
-                claimer_id, ticket_holder_id, claim_time, last_staff_msg, last_holder_msg, original_permissions, officer_used = timeout_info
-
-                # Restore permissions
-                await self.bot.permissions.restore_channel_permissions(ctx.channel, original_permissions)
-
-                # Complete the claim (officer forced completion) - FIX #1: Changed officer_used=False to officer_used=True
-                self.bot.database.complete_claim(ctx.channel.id, timeout_occurred=True, officer_used=True)
-
-                # Remove timeout info
-                self.bot.database.remove_timeout(ctx.channel.id)
-
-                logging.info(f"Officer {ctx.author.id} completed ticket for claimer {claimer_id} in channel {ctx.channel.id}")
+            logging.info(f"Officer {ctx.author.id} completed ticket for claimer {claimer_id} in channel {ctx.channel.id}")
 
         except Exception as e:
             logging.error(f"Error in officer command: {e}")
-            await ctx.send("❌ An error occurred while processing officer help.")
+            await ctx.send(f"❌ An error occurred while processing officer help: {str(e)}")
 
     @commands.command(name='lb', aliases=['leaderboard'])
     async def show_leaderboard(self, ctx, period: str = "total", page: int = 1):
@@ -475,6 +500,26 @@ class BotCommands(commands.Cog):
             logging.error(f"Error in category command: {e}")
             await ctx.send("❌ An error occurred while setting allowed category.")
 
+    @commands.command(name='addcategory')
+    @commands.has_permissions(administrator=True)
+    async def add_allowed_category(self, ctx, category: discord.CategoryChannel):
+        """Add an additional allowed category for ticket commands."""
+        try:
+            self.bot.database.add_allowed_category(ctx.guild.id, category.id)
+
+            embed = discord.Embed(
+                title="✅ Category Added",
+                description=f"Added {category.name} to allowed categories",
+                color=discord.Color.green()
+            )
+            await ctx.send(embed=embed)
+
+            logging.info(f"Category {category.id} added by {ctx.author.id} in guild {ctx.guild.id}")
+
+        except Exception as e:
+            logging.error(f"Error in addcategory command: {e}")
+            await ctx.send("❌ An error occurred while adding the category.")
+
     @commands.command(name='leaderboardchannel')
     @commands.has_permissions(administrator=True)
     async def set_leaderboard_channel(self, ctx, channel: discord.TextChannel):
@@ -524,6 +569,7 @@ class BotCommands(commands.Cog):
     @set_staff_role.error
     @set_officer_role.error
     @set_allowed_category.error
+    @add_allowed_category.error
     @set_leaderboard_channel.error
     @test_timeout.error
     async def admin_command_error(self, ctx, error):
