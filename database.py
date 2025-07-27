@@ -242,7 +242,7 @@ class Database:
             conn.commit()
 
     def get_active_claim(self, channel_id: int):
-        """FIX #1: Get active claim for a channel to prevent duplicate claims."""
+        """Get active claim for a channel to prevent duplicate claims."""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             cursor.execute('''
@@ -253,7 +253,7 @@ class Database:
             return cursor.fetchone()
 
     def complete_claim(self, channel_id: int, timeout_occurred: bool = False, officer_used: bool = False):
-        """FIX #2: Mark a claim as completed and award score - Fixed officer logic for point awarding."""
+        """Mark a claim as completed and award score - FIXED officer logic for point awarding."""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             
@@ -275,15 +275,13 @@ class Database:
                     WHERE channel_id = ? AND user_id = ? AND completed = FALSE
                 ''', (timeout_occurred, channel_id, user_id))
 
-                # FIXED: Award points logic - now includes officer command completions
+                # FIXED: Award points for any successful completion (not timed out)
                 if not score_awarded and not timeout_occurred:
-                    # Normal completion - award points
                     self.award_score(guild_id, user_id)
-                    logging.info(f"Point awarded to user {user_id} for completing ticket in channel {channel_id} (normal completion)")
-                elif not score_awarded and timeout_occurred and officer_used:
-                    # Officer command completion - also award points
-                    self.award_score(guild_id, user_id)
-                    logging.info(f"Point awarded to user {user_id} for officer-completed ticket in channel {channel_id}")
+                    if officer_used:
+                        logging.info(f"Point awarded to user {user_id} for officer-assisted ticket completion in channel {channel_id}")
+                    else:
+                        logging.info(f"Point awarded to user {user_id} for normal ticket completion in channel {channel_id}")
                 
                 conn.commit()
 
