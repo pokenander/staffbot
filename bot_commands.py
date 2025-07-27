@@ -330,12 +330,6 @@ class BotCommands(commands.Cog):
 
             # FIX #3: Mention the officer role in the response
             embed = discord.Embed(
-            title="✅ Officer Access Granted",
-            description=f"Officer role {officer_role.mention} can now access this ticket and help resolve it.",
-            color=discord.Color.purple()
-            )
-
-            embed = discord.Embed(
                 title="✅ Officer Access Granted",
                 description=f"Officer role {officer_role.mention} can now access this ticket and help resolve it.",
                 color=discord.Color.purple()
@@ -526,10 +520,11 @@ class BotCommands(commands.Cog):
             logging.error(f"Error in test command: {e}")
             await ctx.send("❌ An error occurred while testing timeout.")
 
-    @readperms.error
-    @officerrole.error
-    @category.error
-    @leaderboardchannel.error
+    # FIXED: Correct error handler references
+    @set_staff_role.error
+    @set_officer_role.error
+    @set_allowed_category.error
+    @set_leaderboard_channel.error
     @test_timeout.error
     async def admin_command_error(self, ctx, error):
         if isinstance(error, commands.MissingPermissions):
