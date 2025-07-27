@@ -523,10 +523,11 @@ class BotCommands(commands.Cog):
             logging.error(f"Error in test command: {e}")
             await ctx.send("❌ An error occurred while testing timeout.")
 
-    @readperms.error
-    @officerrole.error
-    @category.error
-    @leaderboardchannel.error
+    # FIXED: Proper error handlers
+    @set_staff_role.error
+    @set_officer_role.error
+    @set_allowed_category.error
+    @set_leaderboard_channel.error
     @test_timeout.error
     async def admin_command_error(self, ctx, error):
         if isinstance(error, commands.MissingPermissions):
