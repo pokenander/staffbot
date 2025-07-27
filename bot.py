@@ -10,7 +10,7 @@ import pytz
 from database import Database
 from permissions import PermissionManager
 from timeouts import TimeoutManager
-from leaderboard import LeaderboardManager
+from leaderboard import Leaderboard
 from config import BOT_PREFIX, DATABASE_PATH, TIMEZONE
 
 # === Flask server to keep Render Web Service alive ===
