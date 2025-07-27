@@ -181,8 +181,11 @@ class BotCommands(commands.Cog):
             # Restore permissions
             await self.bot.permissions.restore_channel_permissions(ctx.channel, original_permissions)
 
-            # Complete the claim (successful completion) - FIXED: removed duplicate call
+            # FIX #2: Complete the claim with proper officer_used parameter
             self.bot.database.complete_claim(ctx.channel.id, timeout_occurred=False, officer_used=officer_used)
+
+            # Complete the claim (successful completion)
+            self.bot.database.complete_claim(ctx.channel.id, timeout_occurred=False)
 
             # Remove timeout info
             self.bot.database.remove_timeout(ctx.channel.id)
@@ -302,7 +305,7 @@ class BotCommands(commands.Cog):
 
     @commands.command(name='officer')
     async def officer_help(self, ctx):
-        """Allow officers to help with tickets and complete them."""
+        """Allow officer role to access the ticket temporarily."""
         try:
             # Get guild configuration
             staff_role_id, officer_role_id, allowed_category_id, leaderboard_channel_id = self.bot.database.get_guild_config(ctx.guild.id)
@@ -311,230 +314,220 @@ class BotCommands(commands.Cog):
                 await ctx.send("❌ Officer role not configured. Use `?officerrole @role` to set it.")
                 return
 
-            # Check if user has officer role
-            if not self.bot.permissions.has_officer_role(ctx.author, officer_role_id):
+            # Check if user has staff role
+            if not self.bot.permissions.has_staff_role(ctx.author, staff_role_id):
                 await ctx.send("❌ You don't have permission to use this command.")
                 return
 
-            # Get timeout info
-            timeout_info = self.bot.database.get_timeout_info(ctx.channel.id)
-            if not timeout_info:
-                await ctx.send("❌ No active claim found for this channel.")
+            # Get officer role
+            officer_role = ctx.guild.get_role(officer_role_id)
+            if not officer_role:
+                await ctx.send("❌ Officer role not found.")
                 return
 
-            claimer_id, ticket_holder_id, claim_time, last_staff_msg, last_holder_msg, original_permissions, officer_used = timeout_info
+            # Add officer permissions
+            await self.bot.permissions.add_officer_permissions(ctx.channel, officer_role)
 
-            # Mark that officer was used
+            # Mark officer as used
             self.bot.database.mark_officer_used(ctx.channel.id)
 
-            # Restore permissions
-            await self.bot.permissions.restore_channel_permissions(ctx.channel, original_permissions)
-
-            # Complete the claim (officer forced completion) - FIXED: officer_used=True
-            self.bot.database.complete_claim(ctx.channel.id, timeout_occurred=True, officer_used=True)
-
-            # Remove timeout info
-            self.bot.database.remove_timeout(ctx.channel.id)
-
-            # Get claimer info for notification
-            claimer = ctx.guild.get_member(claimer_id)
-            claimer_mention = claimer.mention if claimer else f"<@{claimer_id}>"
-
-            # Send confirmation
+            # FIX #3: Mention the officer role in the response
             embed = discord.Embed(
-                title="👮‍♂️ Officer Intervention",
-                description=f"Officer {ctx.author.mention} has completed this ticket.\n**Original Claimer:** {claimer_mention}",
-                color=discord.Color.gold()
+            title="✅ Officer Access Granted",
+            description=f"Officer role {officer_role.mention} can now access this ticket and help resolve it.",
+            color=discord.Color.purple()
             )
-            embed.add_field(
-                name="✅ Actions Taken",
-                value="• Permissions restored\n• Claim marked as completed\n• Points awarded to original claimer",
-                inline=False
+
+            embed = discord.Embed(
+                title="✅ Officer Access Granted",
+                description=f"Officer role {officer_role.mention} can now access this ticket.",
+                color=discord.Color.purple()
             )
             await ctx.send(embed=embed)
 
-            logging.info(f"Officer {ctx.author.id} completed ticket for claimer {claimer_id} in channel {ctx.channel.id}")
+            logging.info(f"Officer access granted by {ctx.author.id} in channel {ctx.channel.id}")
 
         except Exception as e:
             logging.error(f"Error in officer command: {e}")
-            await ctx.send("❌ An error occurred while processing officer intervention.")
+            await ctx.send("❌ An error occurred while granting officer access.")
+
+    @commands.command(name='readperms', aliases=['staffrole'])
+    @commands.has_permissions(manage_roles=True)
+    async def set_staff_role(self, ctx, role: discord.Role):
+        """Set the staff role for ticket management."""
+        self.bot.database.set_staff_role(ctx.guild.id, role.id)
+        
+        embed = discord.Embed(
+            title="✅ Staff Role Set",
+            description=f"Staff role set to {role.mention}",
+            color=discord.Color.green()
+        )
+        await ctx.send(embed=embed)
+        logging.info(f"Staff role set to {role.id} for guild {ctx.guild.id}")
+
+    @commands.command(name='officerrole')
+    @commands.has_permissions(manage_roles=True)
+    async def set_officer_role(self, ctx, role: discord.Role):
+        """Set the officer role for tickets."""
+        self.bot.database.set_officer_role(ctx.guild.id, role.id)
+        
+        embed = discord.Embed(
+            title="✅ Officer Role Set",
+            description=f"Officer role set to {role.mention}",
+            color=discord.Color.green()
+        )
+        await ctx.send(embed=embed)
+        logging.info(f"Officer role set to {role.id} for guild {ctx.guild.id}")
+
+    @commands.command(name='addcat')
+    @commands.has_permissions(manage_channels=True)
+    async def add_allowed_category_by_name(self, ctx, *, category_name: str):
+        """Add allowed category by name for ticket commands."""
+        
+        # Find category by name
+        category = discord.utils.get(ctx.guild.categories, name=category_name)
+        if not category:
+            await ctx.send(f"❌ Category '{category_name}' not found.")
+            return
+        
+        self.bot.database.add_allowed_category(ctx.guild.id, category.id)
+        await ctx.send(f"✅ Added allowed category: **{category.name}**")
+        logging.info(f"Allowed category {category.id} added for guild {ctx.guild.id}")
+
+    @commands.command(name='addcategory')
+    @commands.has_permissions(manage_channels=True)
+    async def add_allowed_category(self, ctx, category: discord.CategoryChannel):
+        """Add allowed category for ticket commands."""
+        
+        self.bot.database.add_allowed_category(ctx.guild.id, category.id)
+        await ctx.send(f"✅ Added allowed category: **{category.name}**")
+
+    @commands.command(name='category')
+    @commands.has_permissions(manage_channels=True)
+    async def set_allowed_category(self, ctx, category: discord.CategoryChannel):
+        """Set the category where ticket commands can be used. Usage: ?category #category"""
+        
+        self.bot.database.set_allowed_category(ctx.guild.id, category.id)
+        await ctx.send(f"✅ Ticket commands restricted to **{category.name}** category.")
+        logging.info(f"Allowed category set to {category.id} for guild {ctx.guild.id}")
+
+    @commands.command(name='leaderboardchannel', aliases=['lbchannel'])
+    @commands.has_permissions(manage_channels=True)
+    async def set_leaderboard_channel(self, ctx, channel: discord.TextChannel):
+        """Set the channel for automatic leaderboard updates."""
+        self.bot.database.set_leaderboard_channel(ctx.guild.id, channel.id)
+        
+        embed = discord.Embed(
+            title="✅ Leaderboard Channel Set",
+            description=f"Leaderboard updates will be sent to {channel.mention}",
+            color=discord.Color.green()
+        )
+        await ctx.send(embed=embed)
+        logging.info(f"Leaderboard channel set to {channel.id} for guild {ctx.guild.id}")
 
     @commands.command(name='lb', aliases=['leaderboard'])
     async def show_leaderboard(self, ctx, period: str = "total", page: int = 1):
-        """Show leaderboard for different time periods."""
-        try:
-            if period.lower() not in ["daily", "weekly", "total"]:
-                await ctx.send("❌ Invalid period. Use: daily, weekly, or total")
+        """Show leaderboard. Usage: ?lb [daily/weekly/total] [page]"""
+        valid_periods = ["daily", "weekly", "total"]
+        
+        if period not in valid_periods:
+            # If first argument is a number, treat it as page for total leaderboard
+            try:
+                page = int(period)
+                period = "total"
+            except ValueError:
+                await ctx.send(f"❌ Invalid period. Use: {', '.join(valid_periods)}")
                 return
 
-            # Get leaderboard data
-            leaderboard_data = self.bot.database.get_leaderboard(ctx.guild.id, period.lower())
-            
-            if not leaderboard_data:
-                await ctx.send(f"📊 No data available for {period} leaderboard.")
+        await self.bot.leaderboard.send_leaderboard(ctx.channel, period, page)
+
+    @commands.command(name='stats')
+    async def show_user_stats(self, ctx, user: discord.Member = None):
+        """Show detailed statistics for a user."""
+        if not user:
+            user = ctx.author
+        
+        await self.bot.leaderboard.send_user_stats(ctx.channel, user)
+
+    @commands.command(name='resetdaily')
+    @commands.has_permissions(administrator=True)
+    async def reset_daily_leaderboard(self, ctx):
+        """Reset daily leaderboard scores."""
+        self.bot.database.reset_daily_leaderboard()
+        
+        embed = discord.Embed(
+            title="✅ Daily Leaderboard Reset",
+            description="All daily scores have been reset to 0.",
+            color=discord.Color.green()
+        )
+        await ctx.send(embed=embed)
+        logging.info(f"Daily leaderboard reset by {ctx.author.id}")
+
+    @commands.command(name='resetweekly')
+    @commands.has_permissions(administrator=True)
+    async def reset_weekly_leaderboard(self, ctx):
+        """Reset weekly leaderboard scores."""
+        self.bot.database.reset_weekly_leaderboard()
+        
+        embed = discord.Embed(
+            title="✅ Weekly Leaderboard Reset",
+            description="All weekly scores have been reset to 0.",
+            color=discord.Color.green()
+        )
+        await ctx.send(embed=embed)
+        logging.info(f"Weekly leaderboard reset by {ctx.author.id}")
+
+    @commands.command(name='timeout')
+    @commands.has_permissions(administrator=True)
+    async def manual_timeout(self, ctx, user: discord.Member):
+        """Manually trigger timeout for a user (admin only)."""
+        try:
+            timeout_info = self.bot.database.get_timeout_info(ctx.channel.id)
+            if not timeout_info:
+                await ctx.send("❌ No active timeout found for this channel.")
                 return
 
-            # Pagination
-            items_per_page = 10
-            total_pages = (len(leaderboard_data) + items_per_page - 1) // items_per_page
-            
-            if page < 1 or page > total_pages:
-                await ctx.send(f"❌ Invalid page number. Available pages: 1-{total_pages}")
-                return
-
-            start_index = (page - 1) * items_per_page
-            end_index = start_index + items_per_page
-            page_data = leaderboard_data[start_index:end_index]
-
-            # Create embed
-            embed = discord.Embed(
-                title=f"🏆 {period.capitalize()} Leaderboard",
-                color=discord.Color.gold()
-            )
-
-            leaderboard_text = ""
-            for i, (user_id, score) in enumerate(page_data, start=start_index + 1):
-                user = ctx.guild.get_member(user_id)
-                username = user.display_name if user else f"Unknown User ({user_id})"
-                
-                # Add medal emojis for top 3
-                if i == 1:
-                    medal = "🥇"
-                elif i == 2:
-                    medal = "🥈"
-                elif i == 3:
-                    medal = "🥉"
-                else:
-                    medal = f"{i}."
-                
-                leaderboard_text += f"{medal} **{username}** - {score} point{'s' if score != 1 else ''}\n"
-
-            embed.description = leaderboard_text
-            embed.set_footer(text=f"Page {page}/{total_pages} • Total entries: {len(leaderboard_data)}")
-
-            await ctx.send(embed=embed)
-
-        except Exception as e:
-            logging.error(f"Error in leaderboard command: {e}")
-            await ctx.send("❌ An error occurred while fetching the leaderboard.")
-
-    @commands.command(name='readperms')
-    @commands.has_permissions(administrator=True)
-    async def set_staff_role(self, ctx, role: discord.Role):
-        """Set the staff role for ticket management."""
-        try:
-            self.bot.database.set_staff_role(ctx.guild.id, role.id)
+            # Trigger timeout through timeout manager
+            await self.bot.timeout_manager.handle_timeout(ctx.channel.id)
             
             embed = discord.Embed(
-                title="✅ Staff Role Set",
-                description=f"Staff role set to {role.mention}",
-                color=discord.Color.green()
+                title="⏰ Manual Timeout Triggered",
+                description=f"Timeout manually triggered for {user.mention}",
+                color=discord.Color.orange()
             )
             await ctx.send(embed=embed)
 
-            logging.info(f"Staff role set to {role.id} by {ctx.author.id} in guild {ctx.guild.id}")
-
         except Exception as e:
-            logging.error(f"Error in readperms command: {e}")
-            await ctx.send("❌ An error occurred while setting staff role.")
-
-    @commands.command(name='officerrole')
-    @commands.has_permissions(administrator=True)
-    async def set_officer_role(self, ctx, role: discord.Role):
-        """Set the officer role for ticket management."""
-        try:
-            self.bot.database.set_officer_role(ctx.guild.id, role.id)
-            
-            embed = discord.Embed(
-                title="✅ Officer Role Set",
-                description=f"Officer role set to {role.mention}",
-                color=discord.Color.green()
-            )
-            await ctx.send(embed=embed)
-
-            logging.info(f"Officer role set to {role.id} by {ctx.author.id} in guild {ctx.guild.id}")
-
-        except Exception as e:
-            logging.error(f"Error in officerrole command: {e}")
-            await ctx.send("❌ An error occurred while setting officer role.")
-
-    @commands.command(name='category')
-    @commands.has_permissions(administrator=True)
-    async def set_allowed_category(self, ctx, category: discord.CategoryChannel):
-        """Set the allowed category for ticket commands."""
-        try:
-            self.bot.database.set_allowed_category(ctx.guild.id, category.id)
-            
-            embed = discord.Embed(
-                title="✅ Allowed Category Set",
-                description=f"Allowed category set to {category.name}",
-                color=discord.Color.green()
-            )
-            await ctx.send(embed=embed)
-
-            logging.info(f"Allowed category set to {category.id} by {ctx.author.id} in guild {ctx.guild.id}")
-
-        except Exception as e:
-            logging.error(f"Error in category command: {e}")
-            await ctx.send("❌ An error occurred while setting allowed category.")
-
-    @commands.command(name='leaderboardchannel')
-    @commands.has_permissions(administrator=True)
-    async def set_leaderboard_channel(self, ctx, channel: discord.TextChannel):
-        """Set the channel for automatic leaderboard updates."""
-        try:
-            self.bot.database.set_leaderboard_channel(ctx.guild.id, channel.id)
-            
-            embed = discord.Embed(
-                title="✅ Leaderboard Channel Set",
-                description=f"Leaderboard channel set to {channel.mention}",
-                color=discord.Color.green()
-            )
-            await ctx.send(embed=embed)
-
-            logging.info(f"Leaderboard channel set to {channel.id} by {ctx.author.id} in guild {ctx.guild.id}")
-
-        except Exception as e:
-            logging.error(f"Error in leaderboardchannel command: {e}")
-            await ctx.send("❌ An error occurred while setting leaderboard channel.")
+            logging.error(f"Error in manual timeout: {e}")
+            await ctx.send("❌ An error occurred while triggering timeout.")
 
     @commands.command(name='test')
     @commands.has_permissions(administrator=True)
     async def test_timeout(self, ctx, channel_id: int = None):
         """Test timeout functionality (admin only)."""
+        test_channel_id = channel_id or ctx.channel.id
+        
+        timeout_info = self.bot.database.get_timeout_info(test_channel_id)
+        if not timeout_info:
+            await ctx.send(f"❌ No active timeout found for channel {test_channel_id}.")
+            return
+
+        await ctx.send(f"🧪 Testing timeout for channel {test_channel_id}...")
+        
         try:
-            if channel_id:
-                channel = self.bot.get_channel(channel_id)
-                if not channel:
-                    await ctx.send("❌ Channel not found.")
-                    return
-            else:
-                channel = ctx.channel
-
-            # Trigger timeout check for the specified channel
-            timeout_task = self.bot.timeout_handler.check_single_timeout(channel.id)
-            if timeout_task:
-                await timeout_task
-                await ctx.send(f"✅ Timeout check completed for {channel.mention}")
-            else:
-                await ctx.send(f"❌ No active timeout found for {channel.mention}")
-
+            await self.bot.timeout_manager.handle_timeout(test_channel_id)
+            await ctx.send("✅ Timeout test completed.")
         except Exception as e:
-            logging.error(f"Error in test command: {e}")
-            await ctx.send("❌ An error occurred while testing timeout.")
+            await ctx.send(f"❌ Timeout test failed: {str(e)}")
 
-    # FIXED: Proper error handlers
-    @set_staff_role.error
-    @set_officer_role.error
-    @set_allowed_category.error
-    @set_leaderboard_channel.error
-    @test_timeout.error
-    async def admin_command_error(self, ctx, error):
-        if isinstance(error, commands.MissingPermissions):
-            await ctx.send("❌ You need administrator permissions to use this command.")
-        else:
-            logging.error(f"Admin command error: {error}")
-            await ctx.send("❌ An error occurred while executing the command.")
+    @commands.Cog.listener()
+    async def on_message(self, message):
+        """Track messages for timeout system."""
+        if message.author.bot:
+            return
+        
+        # Update last message time for timeout tracking
+        self.bot.database.update_last_message(message.channel.id, message.author.id)
 
 async def setup(bot):
     await bot.add_cog(BotCommands(bot))
