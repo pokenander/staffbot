@@ -252,98 +252,75 @@ class Database:
             ''', (channel_id,))
             return cursor.fetchone()
 
-def complete_claim(self, channel_id: int, timeout_occurred: bool = False, officer_used: bool = False):
-    """Mark a claim as completed and award score - FIXED officer logic for point awarding."""
-    with sqlite3.connect(self.db_path) as conn:
-        cursor = conn.cursor()
-        
-        # Debug logging
-        logging.info(f"=== COMPLETE_CLAIM DEBUG ===")
-        logging.info(f"Channel ID: {channel_id}")
-        logging.info(f"Timeout occurred: {timeout_occurred}")
-        logging.info(f"Officer used: {officer_used}")
-        
-        # Get the most recent claim for this channel
-        cursor.execute('''
-            SELECT guild_id, user_id, score_awarded FROM ticket_claims 
-            WHERE channel_id = ? AND completed = FALSE 
-            ORDER BY claimed_at DESC LIMIT 1
-        ''', (channel_id,))
-        result = cursor.fetchone()
-        
-        logging.info(f"Query result: {result}")
-        
-        if result:
-            guild_id, user_id, score_awarded = result
+    def complete_claim(self, channel_id: int, timeout_occurred: bool = False, officer_used: bool = False):
+        """Mark a claim as completed and award score - FIXED officer logic for point awarding."""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
             
-            logging.info(f"Guild ID: {guild_id}")
-            logging.info(f"User ID: {user_id}")
-            logging.info(f"Score already awarded: {score_awarded}")
+            # Debug logging
+            logging.info(f"=== COMPLETE_CLAIM DEBUG ===")
+            logging.info(f"Channel ID: {channel_id}")
+            logging.info(f"Timeout occurred: {timeout_occurred}")
+            logging.info(f"Officer used: {officer_used}")
             
-            # Mark as completed
+            # Get the most recent claim for this channel
             cursor.execute('''
-                UPDATE ticket_claims 
-                SET completed = TRUE, timeout_occurred = ?, score_awarded = TRUE
-                WHERE channel_id = ? AND user_id = ? AND completed = FALSE
-            ''', (timeout_occurred, channel_id, user_id))
-
-            logging.info(f"Claim marked as completed. Rows affected: {cursor.rowcount}")
-
-            # FIXED: Award points for any successful completion (not timed out)
-            if not score_awarded and not timeout_occurred:
-                logging.info(f"Attempting to award score - score_awarded: {score_awarded}, timeout_occurred: {timeout_occurred}")
-                self.award_score(guild_id, user_id)
-                if officer_used:
-                    logging.info(f"Point awarded to user {user_id} for officer-assisted ticket completion in channel {channel_id}")
-                else:
-                    logging.info(f"Point awarded to user {user_id} for normal ticket completion in channel {channel_id}")
-            else:
-                logging.info(f"NOT awarding score - score_awarded: {score_awarded}, timeout_occurred: {timeout_occurred}")
+                SELECT guild_id, user_id, score_awarded FROM ticket_claims 
+                WHERE channel_id = ? AND completed = FALSE 
+                ORDER BY claimed_at DESC LIMIT 1
+            ''', (channel_id,))
+            result = cursor.fetchone()
             
-            conn.commit()
-            logging.info(f"Database changes committed")
-        else:
-            logging.warning(f"No active claim found for channel {channel_id}")
-        
-        logging.info(f"=== END COMPLETE_CLAIM DEBUG ===")
+            logging.info(f"Query result: {result}")
+            
+            if result:
+                guild_id, user_id, score_awarded = result
+                
+                logging.info(f"Guild ID: {guild_id}")
+                logging.info(f"User ID: {user_id}")
+                logging.info(f"Score already awarded: {score_awarded}")
+                
+                # Mark as completed
+                cursor.execute('''
+                    UPDATE ticket_claims 
+                    SET completed = TRUE, timeout_occurred = ?, score_awarded = TRUE
+                    WHERE channel_id = ? AND user_id = ? AND completed = FALSE
+                ''', (timeout_occurred, channel_id, user_id))
+
+                logging.info(f"Claim marked as completed. Rows affected: {cursor.rowcount}")
+
+                # FIXED: Award points for any successful completion (not timed out)
+                if not score_awarded and not timeout_occurred:
+                    logging.info(f"Attempting to award score - score_awarded: {score_awarded}, timeout_occurred: {timeout_occurred}")
+                    self.award_score(guild_id, user_id)
+                    if officer_used:
+                        logging.info(f"Point awarded to user {user_id} for officer-assisted ticket completion in channel {channel_id}")
+                    else:
+                        logging.info(f"Point awarded to user {user_id} for normal ticket completion in channel {channel_id}")
+                else:
+                    logging.info(f"NOT awarding score - score_awarded: {score_awarded}, timeout_occurred: {timeout_occurred}")
                 
                 conn.commit()
+                logging.info(f"Database changes committed")
+            else:
+                logging.warning(f"No active claim found for channel {channel_id}")
+            
+            logging.info(f"=== END COMPLETE_CLAIM DEBUG ===")
 
-def award_score(self, guild_id: int, user_id: int):
-    """Award a point to a user."""
-    with sqlite3.connect(self.db_path) as conn:
-        cursor = conn.cursor()
-        
-        logging.info(f"=== AWARD_SCORE DEBUG ===")
-        logging.info(f"Awarding score to user {user_id} in guild {guild_id}")
-        
-        # Create or update leaderboard entry
-        cursor.execute('''
-            INSERT OR IGNORE INTO leaderboard (guild_id, user_id) VALUES (?, ?)
-        ''', (guild_id, user_id))
-        
-        logging.info(f"Insert/ignore leaderboard entry. Rows affected: {cursor.rowcount}")
-        
-        cursor.execute('''
-            UPDATE leaderboard 
-            SET daily_claims = daily_claims + 1,
-                weekly_claims = weekly_claims + 1,
-                total_claims = total_claims + 1
-            WHERE guild_id = ? AND user_id = ?
-        ''', (guild_id, user_id))
-        
-        logging.info(f"Updated leaderboard scores. Rows affected: {cursor.rowcount}")
-        
-        conn.commit()
-        
-        # Verify the update worked
-        cursor.execute('''
-            SELECT daily_claims, weekly_claims, total_claims FROM leaderboard 
-            WHERE guild_id = ? AND user_id = ?
-        ''', (guild_id, user_id))
-        result = cursor.fetchone()
-        logging.info(f"Current scores for user {user_id}: {result}")
-        logging.info(f"=== END AWARD_SCORE DEBUG ===")
+    def award_score(self, guild_id: int, user_id: int):
+        """Award a point to a user."""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            
+            logging.info(f"=== AWARD_SCORE DEBUG ===")
+            logging.info(f"Awarding score to user {user_id} in guild {guild_id}")
+            
+            # Create or update leaderboard entry
+            cursor.execute('''
+                INSERT OR IGNORE INTO leaderboard (guild_id, user_id) VALUES (?, ?)
+            ''', (guild_id, user_id))
+            
+            logging.info(f"Insert/ignore leaderboard entry. Rows affected: {cursor.rowcount}")
             
             cursor.execute('''
                 UPDATE leaderboard 
@@ -353,7 +330,18 @@ def award_score(self, guild_id: int, user_id: int):
                 WHERE guild_id = ? AND user_id = ?
             ''', (guild_id, user_id))
             
+            logging.info(f"Updated leaderboard scores. Rows affected: {cursor.rowcount}")
+            
             conn.commit()
+            
+            # Verify the update worked
+            cursor.execute('''
+                SELECT daily_claims, weekly_claims, total_claims FROM leaderboard 
+                WHERE guild_id = ? AND user_id = ?
+            ''', (guild_id, user_id))
+            result = cursor.fetchone()
+            logging.info(f"Current scores for user {user_id}: {result}")
+            logging.info(f"=== END AWARD_SCORE DEBUG ===")
 
     def get_leaderboard(self, guild_id: int, period: str = "total"):
         """Get leaderboard data for a specific period."""
