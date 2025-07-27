@@ -43,12 +43,18 @@ class Leaderboard:
 
             # Add leaderboard entries with user display names
             for i, (user_id, claims) in enumerate(page_data, start=start_idx + 1):
-                # Get user object and create display name
-                user = guild.get_member(user_id) or self.bot.get_user(user_id)
+                # Get user object with better fetching
+                user = guild.get_member(user_id)
+                if not user:
+                    try:
+                        user = await self.bot.fetch_user(user_id)
+                    except:
+                        user = None
+
                 if user:
-                    user_display = f"@{user.display_name}"
+                    user_display = f"@{user.display_name if hasattr(user, 'display_name') else user.name}"
                 else:
-                    user_display = f"User {user_id}"
+                    user_display = f"Unknown User"
                 
                 # Determine medal/emoji
                 if i == 1:
@@ -202,11 +208,17 @@ class Leaderboard:
             daily_top = daily_data[:3] if daily_data else []
             daily_text = ""
             for i, (user_id, claims) in enumerate(daily_top, 1):
-                user = guild.get_member(user_id) or self.bot.get_user(user_id)
+                user = guild.get_member(user_id)
+                if not user:
+                    try:
+                        user = await self.bot.fetch_user(user_id)
+                    except:
+                        user = None
+
                 if user:
-                    user_display = f"@{user.display_name}"
+                    user_display = f"@{user.display_name if hasattr(user, 'display_name') else user.name}"
                 else:
-                    user_display = f"User {user_id}"
+                    user_display = f"Unknown User"
                 medal = ["🥇", "🥈", "🥉"][i-1]
                 daily_text += f"{medal} {user_display} - {claims}\n"
             
@@ -217,11 +229,17 @@ class Leaderboard:
             weekly_top = weekly_data[:3] if weekly_data else []
             weekly_text = ""
             for i, (user_id, claims) in enumerate(weekly_top, 1):
-                user = guild.get_member(user_id) or self.bot.get_user(user_id)
+                user = guild.get_member(user_id)
+                if not user:
+                    try:
+                        user = await self.bot.fetch_user(user_id)
+                    except:
+                        user = None
+
                 if user:
-                    user_display = f"@{user.display_name}"
+                    user_display = f"@{user.display_name if hasattr(user, 'display_name') else user.name}"
                 else:
-                    user_display = f"User {user_id}"
+                    user_display = f"Unknown User"
                 medal = ["🥇", "🥈", "🥉"][i-1]
                 weekly_text += f"{medal} {user_display} - {claims}\n"
             
@@ -232,11 +250,17 @@ class Leaderboard:
             total_top = total_data[:3] if total_data else []
             total_text = ""
             for i, (user_id, claims) in enumerate(total_top, 1):
-                user = guild.get_member(user_id) or self.bot.get_user(user_id)
+                user = guild.get_member(user_id)
+                if not user:
+                    try:
+                        user = await self.bot.fetch_user(user_id)
+                    except:
+                        user = None
+
                 if user:
-                    user_display = f"@{user.display_name}"
+                    user_display = f"@{user.display_name if hasattr(user, 'display_name') else user.name}"
                 else:
-                    user_display = f"User {user_id}"
+                    user_display = f"Unknown User"
                 medal = ["🥇", "🥈", "🥉"][i-1]
                 total_text += f"{medal} {user_display} - {claims}\n"
             
